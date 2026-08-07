@@ -1,0 +1,16 @@
+{
+  "name": "race-engineer",
+  "version": "0.1.0",
+  "description": "AI race engineer for F1 25 + GT7. UDP telemetry bridge, live dashboard, voice radio powered by Claude.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "inspect": "node tools/inspect.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "ws": "^8.18.0"
+  }
+}

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pit Wall — AI Race Engineer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">PIT&nbsp;WALL</div>
+    <div class="sessioninfo" id="sessionInfo">Waiting for telemetry</div>
+    <div class="conn" id="conn"><span class="led"></span><span id="connLabel">OFFLINE</span></div>
+  </header>
+
+  <main class="grid">
+    <!-- CAR -->
+    <section class="panel car">
+      <h2 class="ptitle">Car</h2>
+      <div class="speedo">
+        <div class="speed"><span id="speed">0</span><small>km/h</small></div>
+        <div class="gearbox">
+          <div class="gear" id="gear">N</div>
+          <div class="suggest" id="suggestGear"></div>
+        </div>
+      </div>
+      <div class="rpmwrap"><div class="rpmbar" id="rpmBar"></div><span class="rpmlabel" id="rpmLabel">0 rpm</span></div>
+      <div class="pedals">
+        <div class="pedal"><label>THR</label><div class="pbar"><div id="thrBar" class="fill thr"></div></div></div>
+        <div class="pedal"><label>BRK</label><div class="pbar"><div id="brkBar" class="fill brk"></div></div></div>
+      </div>
+      <div class="tyres" id="tyres">
+        <div class="tyre" data-i="2"><span class="tt">–</span><span class="tw"></span></div>
+        <div class="tyre" data-i="3"><span class="tt">–</span><span class="tw"></span></div>
+        <div class="tyre" data-i="0"><span class="tt">–</span><span class="tw"></span></div>
+        <div class="tyre" data-i="1"><span class="tt">–</span><span class="tw"></span></div>
+      </div>
+      <div class="statrows" id="statRows"></div>
+    </section>
+
+    <!-- TIMING -->
+    <section class="panel timing">
+      <h2 class="ptitle">Timing</h2>
+      <div class="lapline" id="lapLine"></div>
+      <div class="tower" id="tower"><div class="empty">Opponent data appears here in F1 25.<br/>GT7 telemetry is own-car only.</div></div>
+    </section>
+
+    <!-- RADIO -->
+    <section class="panel radio">
+      <div class="radiostrip" id="radioStrip">
+        <span class="rlabel" id="radioLabel">RADIO</span>
+        <span class="wave" id="wave"><i></i><i></i><i></i><i></i><i></i></span>
+      </div>
+      <div class="chat" id="chat">
+        <div class="msg eng">Radio check. Bind <b>UDP Action 1</b> in F1's controls as your talk button, or hold the button below / spacebar.</div>
+      </div>
+      <div class="radioctl">
+        <button id="pttBtn" class="pttbtn" aria-label="Hold to talk">HOLD TO TALK</button>
+        <form id="typeForm" class="typeform">
+          <input id="typeInput" type="text" placeholder="Or type to your engineer..." autocomplete="off" />
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <!-- COACH -->
+  <footer class="coach" id="coachBar">
+    <span class="ctag">COACH</span>
+    <span id="coachText">Complete one clean lap and I'll learn your brake points.</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

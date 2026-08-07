@@ -14,7 +14,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const DATA_DIR = path.resolve("data/tracks");
+const DATA_DIR = process.env.RACE_DATA_DIR
+  ? path.resolve(process.env.RACE_DATA_DIR)
+  : path.resolve("data/tracks");
 
 // A braking event has to be meaningful before we grade it, otherwise every
 // dab on the brakes produces radio chatter.

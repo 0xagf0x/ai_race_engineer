@@ -7,15 +7,22 @@ import { startServer } from "./server.js";
 import { Engineer } from "./engineer.js";
 import { Coach } from "./coach.js";
 import { Callouts } from "./callouts.js";
+import { RaceArc } from "./racearc.js";
+import { describePenalty } from "./f1/penalties.js";
+import { TrackModel } from "./gt7/track-model.js";
+import { Delta } from "./delta.js";
 
 const log = {
   info: (...a) => console.log("[bridge]", ...a),
   error: (...a) => console.error("[bridge]", ...a),
 };
 
+const delta = new Delta();
 const state = createState();
-const engineer = new Engineer(state);
+const arc = new RaceArc();
+const engineer = new Engineer(state, arc);
 const coach = new Coach();
+const track = new TrackModel();
 
 let pttDown = false;
 
@@ -66,6 +73,16 @@ f1sock.on("message", (buf) => {
       break;
     }
     case F1.PacketId.SESSION: {
+      // A new session id means a new race: drop the previous session's penalties,
+      // position history and pace record so quali doesn't colour the race.
+      if (
+        state.session.sessionUID &&
+        state.session.sessionUID !== header.sessionUID
+      ) {
+        arc.reset();
+        engineer.reset();
+        log.info("New session, race arc reset");
+      }
       const s = F1.parseSession(buf, header);
       applyF1(state, "session", s, header);
       coach.setTrack(`f1-${header.packetFormat}-${s.trackId}`);
@@ -104,6 +121,16 @@ f1sock.on("message", (buf) => {
           lapMsAtSample: lap.currentLapMs,
           invalid: lap.invalid,
         });
+        delta.setTrack(
+          `f1-${header.packetFormat}-${state.session.trackId}`,
+          state.session.trackLength,
+        );
+        delta.update(
+          lap.lapDistance,
+          lap.currentLapMs,
+          lap.currentLapNum,
+          lap.invalid,
+        );
         state.coach = coach.next(lap.lapDistance);
         state.coachFeedback = coach.feedback;
       }
@@ -167,6 +194,26 @@ function handleF1Event(ev) {
     }
     return;
   }
+
+  // Only our own penalties and incidents go into the arc; everyone else's are
+  // timing tower noise.
+  const me = state.opponents?.find((o) => o.isPlayer);
+  if (ev.code === "PENA" && ev.vehicleIdx === me?.idx) {
+    arc.notePenalty(describePenalty(ev));
+  }
+  if (
+    ev.code === "COLL" &&
+    (ev.vehicle1Idx === me?.idx || ev.vehicle2Idx === me?.idx)
+  ) {
+    const otherIdx =
+      ev.vehicle1Idx === me?.idx ? ev.vehicle2Idx : ev.vehicle1Idx;
+    const other = state._participants?.drivers?.[otherIdx]?.name;
+    arc.note(
+      "incident",
+      `contact${other ? ` with ${other}` : " with another car"}`,
+    );
+  }
+
   callouts.onEvent(ev, (idx) => state._participants?.drivers?.[idx]?.name);
 }
 
@@ -177,7 +224,18 @@ if (config.gt7.ps5Ip) {
     (t) => {
       if (t.paused) return;
       applyGT7(state, t);
-      coach.setTrack("gt7-current");
+
+      // Geometry first: the track model turns world position into an exact lap
+      // distance, which is what the coach and the delta both key off. Until a
+      // full lap has been learned, fall back to the integrated estimate.
+      track.addSample({
+        x: t.position.x,
+        z: t.position.z,
+        lapCount: t.lapCount,
+      });
+      const proj = track.project(t.position.x, t.position.z);
+
+      coach.setTrack(track.key ?? "gt7-learning");
       coach.gt7Sample({
         speedMs: t.speedMs,
         brake: t.brake,
@@ -185,8 +243,21 @@ if (config.gt7.ps5Ip) {
         lapCount: t.lapCount,
         now: Date.now(),
       });
-      state.coach = coach.next(coach.gt7Dist);
+
+      const distM = proj?.distanceM ?? coach.gt7Dist;
+      state.coach = coach.next(distM);
       state.coachFeedback = coach.feedback;
+
+      if (proj) {
+        state.player.lap.lapDistance = proj.distanceM;
+        state.player.lateralM = proj.lateralM;
+        // GT7 never reports track limits, so we measure them: a lateral offset
+        // well outside this driver's own normal line at this point of the
+        // circuit is a genuine excursion.
+        if (proj.wide)
+          arc.note("wide", `ran wide at ${Math.round(proj.distanceM)} metres`);
+        else track.learnSpread(proj.distanceM, proj.lateralM);
+      }
     },
     log,
   );
@@ -209,14 +280,20 @@ setInterval(() => {
     tyreSets: state.tyreSets,
     feedbackLevel: callouts.level,
   });
-  if (live) callouts.tick();
+  if (live) {
+    // The arc has to be updated before the callouts run, or the mood the
+    // engineer speaks with is one tick stale.
+    arc.update(state);
+    callouts.tick();
+  }
 }, 100);
 
 log.info(
   `PTT: ${config.pttMode} mode, F1 button mask 0x${config.f1.pttMask.toString(16)} (bind "UDP Action 1" in F1's controls)`,
 );
 log.info(`Feedback: ${callouts.level}`);
-if (!config.apiKey)
+if (!config.apiKey) {
   log.error(
     "ANTHROPIC_API_KEY not set — the engineer will not be able to talk.",
   );
+}

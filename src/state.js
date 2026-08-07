@@ -353,7 +353,7 @@ export function applyGT7(state, t) {
     maxRPM: t.maxAlertRPM,
   };
   state.player.lap = {
-    position: t.startPosition > 0 ? t.startPosition : null,
+    position: t.position,
     currentLapNum: t.lapCount,
     lastLapMs: t.lastLapMs > 0 ? t.lastLapMs : null,
     lastLap: fmtLap(t.lastLapMs),

@@ -1,5 +1,6 @@
 node_modules/
-.next/
-.env.local
-bridge/data/*.json
-*.tsbuildinfo
+.env
+.env.*
+!.env.example
+data/tracks/*.json
+.tmp-test-data/

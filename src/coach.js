@@ -287,12 +287,15 @@ function extractZones(samples) {
       start = s.d;
       entrySpeed = s.v;
       minSpeed = s.v;
-      minGear = s.g;
+      minGear = s.g > 0 ? s.g : 9;
     } else if (inZone) {
-      if (s.v < minSpeed) {
-        minSpeed = s.v;
-        minGear = s.g;
-      }
+      if (s.v < minSpeed) minSpeed = s.v;
+      // Lowest gear used anywhere in the zone, which is what _gradeBraking
+      // measures. Recording the gear at the minimum-speed sample instead put
+      // the two on different definitions, so a corner where the driver was
+      // already back on the throttle at the apex reported a gear mismatch
+      // against a lap it exactly matched.
+      if (s.g > 0) minGear = Math.min(minGear, s.g);
       if (s.b < BRAKE_OFF && s.v > minSpeed + 15) {
         if (entrySpeed - minSpeed > 25) {
           zones.push({

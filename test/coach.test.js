@@ -175,10 +175,14 @@ test("gt7 laps carry a real lap time and can be improved on", () => {
 test("grades a late brake against the reference", () => {
   const c = fresh("c-grade");
   drive(c, 1, [600, 1500, 2400]);
-  drive(c, 2, [640, 1500, 2400]); // 40m late into turn 1
+  // Late into the final corner: feedback holds the most recent graded event,
+  // so the last zone of the lap is the one still on it when the lap ends.
+  drive(c, 2, [600, 1500, 2440]);
   assert.ok(c.feedback, "a graded braking event should produce feedback");
-  const late = c.feedback.text.includes("later than reference");
-  assert.ok(late, `feedback was: ${c.feedback.text}`);
+  assert.equal(c.feedback.cornerIndex, 3);
+  assert.match(c.feedback.text, /40 metres later than reference/);
+  // An identical line through the corner must not report a gear mismatch.
+  assert.doesNotMatch(c.feedback.text, /gear/);
 });
 
 test("next() reports the upcoming zone and wraps past the line", () => {

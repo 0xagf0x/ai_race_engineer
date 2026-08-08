@@ -29,6 +29,12 @@ const INSTANT = {
   chequered: "Chequered flag. Good job.",
 };
 
+// How long a queued event stays worth saying. Race events arrive out of band
+// and can land inside a quiet gap or while the engineer is mid-sentence; a
+// penalty is still worth hearing a few seconds late, a fastest lap is not.
+const EVENT_TTL_MS = 12000;
+const MAX_PENDING = 12;
+
 export const freshMemory = () => ({
   lastLapSeen: -1,
   bestLapMs: 0,
@@ -408,7 +414,7 @@ export class Callouts {
   onEvent(ev, resolveName) {
     switch (ev.code) {
       case "FTLP":
-        this.pendingEvents.push({
+        this._queue({
           id: `ftlp_${ev.vehicleIdx}`,
           priority: 2,
           cooldownMs: 10000,
@@ -418,7 +424,7 @@ export class Callouts {
       case "OVTK": {
         const me = this.state.opponents?.find((o) => o.isPlayer);
         if (me && ev.overtakenVehicleIdx === me.idx) {
-          this.pendingEvents.push({
+          this._queue({
             id: "overtaken",
             priority: 3,
             cooldownMs: 8000,
@@ -428,8 +434,8 @@ export class Callouts {
         break;
       }
       case "PENA":
-        this.pendingEvents.push({
-          id: `pena_${Date.now()}`,
+        this._queue({
+          id: "penalty_event",
           priority: 4,
           cooldownMs: 0,
           fact: "a penalty has been flagged",
@@ -439,7 +445,7 @@ export class Callouts {
         this.speak(INSTANT.chequered);
         break;
       case "RDFL":
-        this.pendingEvents.push({
+        this._queue({
           id: "red_flag",
           priority: 4,
           cooldownMs: 0,
@@ -449,24 +455,46 @@ export class Callouts {
     }
   }
 
+  // Stamped on arrival so tick() can age them out, and bounded so a stream of
+  // events during a pile-up can't grow the queue without limit.
+  _queue(candidate) {
+    this.pendingEvents.push({ ...candidate, at: Date.now() });
+    if (this.pendingEvents.length > MAX_PENDING) this.pendingEvents.shift();
+  }
+
   async tick() {
+    const now = Date.now();
+
+    // Evaluate on every tick regardless of whether we can speak. evaluate()
+    // advances the rolling memory as a side effect, so skipping it while the
+    // engineer is mid-sentence means a lap completed in that window is never
+    // seen: the next tick reads a newer lap number and the old one is gone.
+    const observed = evaluate(this.state, this.mem);
+
+    // Age out stale events. Previously the queue was emptied unconditionally
+    // at the top of the tick, so a red flag or a penalty landing inside the
+    // quiet gap was discarded before pick() ever saw it.
+    if (this.pendingEvents.length) {
+      this.pendingEvents = this.pendingEvents.filter(
+        (e) => now - (e.at ?? now) < EVENT_TTL_MS,
+      );
+    }
+
     if (this.level === "off" || this.busy) return;
     if (this.engineer.busy) return; // never talk over an answer to the driver
 
-    const now = Date.now();
     const cfg = LEVELS[this.level];
-    const candidates = [
-      ...evaluate(this.state, this.mem),
-      ...this.pendingEvents,
-    ];
-    this.pendingEvents = [];
-
-    // Keep evaluating during the quiet gap so best lap and position memory stay
-    // current, but only actually speak once the gap has elapsed.
     if (now - this.lastCalloutAt < cfg.minGapMs) return;
 
-    const chosen = pick(candidates, this.level, this.lastFired);
+    const chosen = pick(
+      [...observed, ...this.pendingEvents],
+      this.level,
+      this.lastFired,
+    );
     if (!chosen) return;
+
+    // Only the one we are about to say leaves the queue.
+    this.pendingEvents = this.pendingEvents.filter((e) => e !== chosen);
 
     this.lastFired[chosen.id] = now;
     this.lastCalloutAt = now;

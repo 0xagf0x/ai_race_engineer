@@ -131,9 +131,7 @@ f1sock.on("message", (buf) => {
       loadPriors(`f1-${s.trackId}`, state.session.track);
 
       coach.setTrack(`f1-${header.packetFormat}-${s.trackId}`);
-      if (coach.reference && state.session.trackLength) {
-        coach.reference.trackLength = state.session.trackLength;
-      }
+      coach.setTrackLength(state.session.trackLength);
       break;
     }
     case F1.PacketId.LAP_DATA: {
@@ -294,6 +292,9 @@ if (config.gt7.ps5Ip) {
       }
 
       coach.setTrack(track.key ?? "gt7-learning");
+      // Null until the first full lap builds the centreline, so this has to run
+      // every packet rather than once at setTrack.
+      coach.setTrackLength(track.lengthM);
       coach.gt7Sample({
         speedMs: t.speedMs,
         brake: t.brake,

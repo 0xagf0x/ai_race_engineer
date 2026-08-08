@@ -20,6 +20,18 @@ const KEEP = 60; // most recent sessions retained per circuit
 
 const safe = (s) => String(s ?? "unknown").replace(/[^\w-]/g, "_");
 
+// Two sessions can end inside the same millisecond, and a record ordered only
+// by a tied timestamp sorts arbitrarily. Ordering matters here because
+// lastVisit and the prune both depend on it, so stamps are forced strictly
+// upward within a process. Across processes real time still dominates, and
+// history() breaks any remaining tie on the filename.
+let lastStamp = 0;
+function stamp() {
+  const now = Date.now();
+  lastStamp = now > lastStamp ? now : lastStamp + 1;
+  return lastStamp;
+}
+
 export class SessionStore {
   constructor() {
     this.startedAt = Date.now();
@@ -42,6 +54,8 @@ export class SessionStore {
     const s = state.session ?? {};
     const lap = state.player?.lap ?? {};
     const st = state.player?.status ?? {};
+    const finishedAt = stamp();
+    const wear = state.player?.damage?.tyreWear;
 
     return {
       trackKey: this.trackKey(state),
@@ -49,8 +63,8 @@ export class SessionStore {
       game: state.game,
       sessionType: s.type ?? null,
       mode: s.mode ?? null,
-      finishedAt: Date.now(),
-      durationMin: +((Date.now() - this.startedAt) / 60000).toFixed(1),
+      finishedAt,
+      durationMin: +((finishedAt - this.startedAt) / 60000).toFixed(1),
 
       result: {
         startedP: arc.startPosition,
@@ -77,9 +91,9 @@ export class SessionStore {
         compound: st.tyre ?? null,
         actual: st.tyreCompound ?? null,
         ageLaps: st.tyreAgeLaps ?? null,
-        worstWearPct: state.player?.damage?.tyreWear
-          ? Math.max(...state.player.damage.tyreWear)
-          : null,
+        // Math.max() of an empty array is -Infinity, which would go straight
+        // into permanent memory.
+        worstWearPct: wear?.length ? Math.max(...wear) : null,
       },
 
       incidents: arc.log
@@ -107,9 +121,9 @@ export class SessionStore {
     try {
       fs.mkdirSync(DATA_DIR, { recursive: true });
 
-      // Two sessions can finish inside the same millisecond, so a timestamp
-      // alone is not a unique name. A session record is permanent memory and
-      // must never silently overwrite another one.
+      // Stamps are unique within a process, but a second bridge writing to the
+      // same folder could still land on this name. A session record is
+      // permanent memory and must never silently overwrite another one.
       const base = `${safe(record.trackKey)}-${record.finishedAt}`;
       let file = path.join(DATA_DIR, `${base}.json`);
       for (let n = 1; fs.existsSync(file); n++) {
@@ -131,16 +145,12 @@ export class SessionStore {
 
   _prune(trackKey) {
     try {
-      const prefix = `${safe(trackKey)}-`;
-      // Prune by recorded time, not filename, for the same reason history() sorts
-      // that way: the collision suffix breaks lexical ordering.
-      const files = fs
-        .readdirSync(DATA_DIR)
-        .filter((f) => f.startsWith(prefix))
-        .map((f) => ({ f, at: recordedAt(path.join(DATA_DIR, f)) }))
-        .sort((a, b) => a.at - b.at);
-      for (const { f } of files.slice(0, Math.max(0, files.length - KEEP))) {
-        fs.rmSync(path.join(DATA_DIR, f), { force: true });
+      const entries = forTrack(trackKey); // oldest first
+      for (const { file } of entries.slice(
+        0,
+        Math.max(0, entries.length - KEEP),
+      )) {
+        fs.rmSync(path.join(DATA_DIR, file), { force: true });
       }
     } catch {
       /* non-fatal */
@@ -149,23 +159,7 @@ export class SessionStore {
 
   /** Every past record for a circuit, oldest first. */
   history(trackKey) {
-    const out = [];
-    try {
-      const prefix = `${safe(trackKey)}-`;
-      for (const f of fs.readdirSync(DATA_DIR)) {
-        if (!f.startsWith(prefix)) continue;
-        try {
-          out.push(JSON.parse(fs.readFileSync(path.join(DATA_DIR, f), "utf8")));
-        } catch {
-          /* skip unreadable record */
-        }
-      }
-    } catch {
-      /* no sessions yet */
-    }
-    // Sort on the recorded time rather than the filename: the collision suffix
-    // makes lexical order unreliable, and lastVisit depends on this being right.
-    return out.sort((a, b) => (a.finishedAt ?? 0) - (b.finishedAt ?? 0));
+    return forTrack(trackKey).map((e) => e.rec);
   }
 
   /**
@@ -228,12 +222,40 @@ export class SessionStore {
   }
 }
 
-function recordedAt(file) {
+/**
+ * Records for one circuit, oldest first.
+ *
+ * Grouping is by the trackKey stored inside each record, not by filename
+ * prefix. safe() keeps hyphens, so the hyphen used as the filename delimiter
+ * is also legal inside a key and a prefix match can pull in a different
+ * circuit's sessions.
+ *
+ * The filename is the final tiebreak. Stamps are unique within a process, so
+ * this only matters for records written by separate runs in the same
+ * millisecond, but ordering must be total or lastVisit is a coin flip.
+ */
+function forTrack(trackKey) {
+  const out = [];
   try {
-    return JSON.parse(fs.readFileSync(file, "utf8")).finishedAt ?? 0;
+    for (const file of fs.readdirSync(DATA_DIR)) {
+      if (!file.endsWith(".json")) continue;
+      try {
+        const rec = JSON.parse(
+          fs.readFileSync(path.join(DATA_DIR, file), "utf8"),
+        );
+        if (rec?.trackKey === trackKey) out.push({ file, rec });
+      } catch {
+        /* skip unreadable record */
+      }
+    }
   } catch {
-    return 0;
+    /* no sessions yet */
   }
+  return out.sort(
+    (a, b) =>
+      (a.rec.finishedAt ?? 0) - (b.rec.finishedAt ?? 0) ||
+      a.file.localeCompare(b.file),
+  );
 }
 
 function spread(times) {

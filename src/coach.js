@@ -2,10 +2,9 @@
 //
 // Two jobs, sharing one sample stream:
 //   1. record laps, keep the fastest valid one as reference, extract its
-//      braking zones, persist per track  (this was already here)
+//      braking zones, persist per track
 //   2. grade every braking event you make against the matching reference zone
-//      and produce "braked 40m later than reference"  (ported from
-//      bridge/src/corners.ts trackBrakingEvent)
+//      and produce "braked 40m later than reference"
 //
 // F1: uses lapDistance straight from telemetry.
 // GT7: integrates speed over time into a pseudo lap distance, reset each lap.
@@ -14,8 +13,10 @@
 import fs from "node:fs";
 import path from "node:path";
 
+// Must match delta.js and gt7/track-model.js: everything track-scoped lives in
+// <root>/tracks so a test run pointed at RACE_DATA_DIR can't reach real data.
 const DATA_DIR = process.env.RACE_DATA_DIR
-  ? path.resolve(process.env.RACE_DATA_DIR)
+  ? path.resolve(process.env.RACE_DATA_DIR, "tracks")
   : path.resolve("data/tracks");
 
 // A braking event has to be meaningful before we grade it, otherwise every
@@ -24,15 +25,18 @@ const BRAKE_ON = 0.4;
 const BRAKE_OFF = 0.05;
 const MIN_SPEED_KPH = 60;
 const ZONE_MATCH_M = 150; // within this of a reference zone counts as the same corner
+const MIN_ZONE_GAP_M = 60; // two zones closer than this are the same corner
 
 export class Coach {
   constructor() {
     this.trackKey = null;
     this.reference = null; // { lapMs, zones: [{cornerIndex, start, entrySpeed, minSpeed, gear}] }
+    this.trackLength = null;
     this.samples = [];
     this.lapNum = null;
     this.gt7Dist = 0;
     this.gt7LastT = 0;
+    this.gt7LapStart = 0;
     this.feedback = null; // { text, cornerIndex, onReference, ts }
 
     // live braking event state
@@ -49,12 +53,27 @@ export class Coach {
     this.trackKey = key;
     this.samples = [];
     this.feedback = null;
+    this.gt7Dist = 0;
+    this.gt7LastT = 0;
+    this.gt7LapStart = 0;
     this.reference = this._load(key);
+    this.trackLength = this.reference?.trackLength ?? null;
     if (this.reference?.zones?.length) {
       console.log(
-        `[coach] loaded reference lap ${this.reference.lapMs}ms with ${this.reference.zones.length} zones for ${key}`,
+        `[coach] loaded reference lap ${this.reference.lapMs ?? "unknown"}ms with ${this.reference.zones.length} zones for ${key}`,
       );
     }
+  }
+
+  /**
+   * Circuit length, used to wrap the distance to the next braking zone past the
+   * start line. Held on the Coach rather than only on the reference so it
+   * survives the first visit, when there is no reference yet to hang it on.
+   */
+  setTrackLength(m) {
+    if (!m || m <= 0) return;
+    this.trackLength = m;
+    if (this.reference) this.reference.trackLength = m;
   }
 
   _file(key) {
@@ -103,13 +122,23 @@ export class Coach {
   gt7Sample({ speedMs, brake, gear, lapCount, now }) {
     if (this.gt7LastT) this.gt7Dist += speedMs * ((now - this.gt7LastT) / 1000);
     this.gt7LastT = now;
-    if (this.lapNum !== null && lapCount !== this.lapNum) this.gt7Dist = 0;
+
+    // GT7 sends no in-lap timer, so we keep our own. Without it every GT7
+    // sample carried an undefined lap time, which made _completeLap read
+    // lapMs as null and lock the very first lap in as the reference forever.
+    if (!this.gt7LapStart) this.gt7LapStart = now;
+    if (this.lapNum !== null && lapCount !== this.lapNum) {
+      this.gt7Dist = 0;
+      this.gt7LapStart = now;
+    }
+
     this.sample({
       dist: this.gt7Dist,
       speed: speedMs * 3.6,
       brake,
       gear,
       lapNum: lapCount,
+      lapMsAtSample: now - this.gt7LapStart,
     });
   }
 
@@ -183,39 +212,55 @@ export class Coach {
 
   _completeLap() {
     const laps = this.samples;
-    if (laps.length < 100) {
-      this.samples = [];
-      return;
-    }
+    this.samples = [];
+    this._braking = false;
+    this._matched = null;
+
+    if (laps.length < 100) return;
+
     const invalid = laps.some((s) => s.inv);
     const lapMs = laps[laps.length - 1].t ?? null;
     const zones = extractZones(laps);
+    if (invalid || !zones.length) return;
+
+    // Replace the reference when it has no times to compare against, which is
+    // how an older record written without a lap time gets healed rather than
+    // blocking every future lap.
     const better =
-      !this.reference ||
-      !this.reference.zones?.length ||
-      (lapMs && this.reference.lapMs && lapMs < this.reference.lapMs);
-    if (!invalid && zones.length && better) {
-      const trackLength = this.reference?.trackLength;
-      this.reference = { lapMs, zones, trackLength, updatedAt: Date.now() };
-      this._save();
-      console.log(
-        `[coach] new reference lap ${lapMs}ms with ${zones.length} braking zones`,
-      );
-    }
-    this.samples = [];
-    this._braking = false;
+      !this.reference?.zones?.length ||
+      this.reference.lapMs == null ||
+      lapMs == null ||
+      lapMs < this.reference.lapMs;
+    if (!better) return;
+
+    this.reference = {
+      lapMs,
+      zones,
+      trackLength: this.trackLength ?? this.reference?.trackLength ?? null,
+      updatedAt: Date.now(),
+    };
+    this._save();
+    console.log(
+      `[coach] new reference lap ${lapMs ?? "unknown"}ms with ${zones.length} braking zones`,
+    );
   }
 
   // What should the driver know right now?
   next(dist) {
     if (!this.reference?.zones?.length || dist == null) return null;
-    const z =
-      this.reference.zones.find((z) => z.start > dist + 20) ??
-      this.reference.zones[0];
+    const zones = this.reference.zones;
+    const z = zones.find((z) => z.start > dist + 20) ?? zones[0];
     if (!z) return null;
+
     let inMeters = z.start - dist;
-    if (inMeters < 0 && this.reference.trackLength)
-      inMeters += this.reference.trackLength;
+    if (inMeters < 0) {
+      const len = this.trackLength ?? this.reference.trackLength;
+      // Without a circuit length there is no way to wrap past the start line,
+      // and a negative distance to the next corner is worse than no answer.
+      if (!len) return null;
+      inMeters += len;
+    }
+
     return {
       cornerIndex: z.cornerIndex,
       brakeInM: Math.round(inMeters),
@@ -262,8 +307,14 @@ function extractZones(samples) {
       }
     }
   }
-  // de-dupe zones closer than 60m apart, then renumber
-  return zones
-    .filter((z, i, a) => i === 0 || z.start - a[i - 1].start > 60)
-    .map((z, i) => ({ ...z, cornerIndex: i + 1 }));
+
+  // Merge zones closer than MIN_ZONE_GAP_M, measuring against the last zone we
+  // kept rather than the last one seen. Comparing against a dropped neighbour
+  // chains the exclusions and eats corners that are genuinely separate.
+  const kept = [];
+  for (const z of zones) {
+    const prev = kept[kept.length - 1];
+    if (!prev || z.start - prev.start > MIN_ZONE_GAP_M) kept.push(z);
+  }
+  return kept.map((z, i) => ({ ...z, cornerIndex: i + 1 }));
 }

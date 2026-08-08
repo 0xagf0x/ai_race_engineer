@@ -11,7 +11,10 @@ import path from "node:path";
 import { Delta } from "../src/delta.js";
 
 const LEN = 3000;
-const DATA = path.resolve("data/tracks");
+const DATA = path.resolve(
+  process.env.RACE_DATA_DIR ?? ".tmp-test-data",
+  "tracks",
+);
 
 function fresh(key) {
   fs.rmSync(path.join(DATA, `${key}-delta.json`), { force: true });

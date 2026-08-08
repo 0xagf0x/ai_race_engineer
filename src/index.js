@@ -11,20 +11,64 @@ import { RaceArc } from "./racearc.js";
 import { describePenalty } from "./f1/penalties.js";
 import { TrackModel } from "./gt7/track-model.js";
 import { Delta } from "./delta.js";
+import { SessionStore } from "./sessions.js";
 
 const log = {
   info: (...a) => console.log("[bridge]", ...a),
   error: (...a) => console.error("[bridge]", ...a),
 };
 
-const delta = new Delta();
+// Order matters: engineer holds references to state and arc, so both exist
+// first. const is hoisted but not initialised, so getting this wrong is a
+// ReferenceError at boot rather than a silent undefined.
 const state = createState();
 const arc = new RaceArc();
 const engineer = new Engineer(state, arc);
 const coach = new Coach();
 const track = new TrackModel();
+const delta = new Delta();
+const sessions = new SessionStore();
 
 let pttDown = false;
+
+// GT7 sends no lap timer, so we keep our own for the delta.
+let gt7Lap = null;
+let gt7LapStart = Date.now();
+
+const say = (text) =>
+  text && server.broadcast({ type: "engineer", text, auto: true });
+
+// Record the session that just ended, debrief it, then clear down for the next
+// one. Order is the whole point: building the record reads the arc, so saving
+// has to happen before the reset or every record comes out empty.
+function endSession(reason) {
+  const record = sessions.build(state, arc, delta);
+  const saved = sessions.save(record);
+  if (saved) {
+    log.info(`Session recorded (${reason})`);
+    // Not awaited: the debrief is in flight while history clears, which is fine
+    // because it reads the record rather than the conversation.
+    engineer.debrief(record, state.priors).then(say);
+  }
+  arc.reset();
+  engineer.reset();
+  sessions.begin();
+  return saved;
+}
+
+// Load what we know about a circuit and, if we have been here before, have the
+// engineer say so as the driver goes out.
+function loadPriors(trackKey, label) {
+  if (!trackKey || state._priorsKey === trackKey) return;
+  state._priorsKey = trackKey;
+  state.trackKey = trackKey;
+  state.priors = sessions.priors(trackKey);
+  if (!state.priors) return;
+  log.info(
+    `Priors: ${state.priors.sessionsHere} previous sessions at ${label}`,
+  );
+  engineer.openSession(state.priors).then(say);
+}
 
 // ---------- Dashboard server ----------
 const server = startServer(
@@ -73,18 +117,19 @@ f1sock.on("message", (buf) => {
       break;
     }
     case F1.PacketId.SESSION: {
-      // A new session id means a new race: drop the previous session's penalties,
-      // position history and pace record so quali doesn't colour the race.
+      // A new session id means quali became the race: bank the old session
+      // before wiping the arc that the record is built from.
       if (
         state.session.sessionUID &&
         state.session.sessionUID !== header.sessionUID
       ) {
-        arc.reset();
-        engineer.reset();
-        log.info("New session, race arc reset");
+        endSession("new session id");
       }
       const s = F1.parseSession(buf, header);
       applyF1(state, "session", s, header);
+
+      loadPriors(`f1-${s.trackId}`, state.session.track);
+
       coach.setTrack(`f1-${header.packetFormat}-${s.trackId}`);
       if (coach.reference && state.session.trackLength) {
         coach.reference.trackLength = state.session.trackLength;
@@ -133,6 +178,7 @@ f1sock.on("message", (buf) => {
         );
         state.coach = coach.next(lap.lapDistance);
         state.coachFeedback = coach.feedback;
+        state.delta = delta.brief();
       }
       break;
     }
@@ -159,6 +205,9 @@ f1sock.on("message", (buf) => {
     case F1.PacketId.FINAL_CLASSIFICATION: {
       const d = F1.parseFinalClassification(buf, header);
       if (d) state.finalClassification = d;
+      // Backstop in case the chequered flag event was missed. save() is
+      // idempotent per session, so a double fire costs nothing.
+      endSession("final classification");
       break;
     }
     case F1.PacketId.EVENT: {
@@ -215,6 +264,10 @@ function handleF1Event(ev) {
   }
 
   callouts.onEvent(ev, (idx) => state._participants?.drivers?.[idx]?.name);
+
+  // The flag is the natural end of a session; final classification follows as
+  // a backstop a moment later.
+  if (ev.code === "CHQF") setTimeout(() => endSession("chequered flag"), 2000);
 }
 
 // ---------- GT7 ----------
@@ -235,6 +288,11 @@ if (config.gt7.ps5Ip) {
       });
       const proj = track.project(t.position.x, t.position.z);
 
+      if (t.lapCount !== gt7Lap) {
+        gt7Lap = t.lapCount;
+        gt7LapStart = Date.now();
+      }
+
       coach.setTrack(track.key ?? "gt7-learning");
       coach.gt7Sample({
         speedMs: t.speedMs,
@@ -251,6 +309,20 @@ if (config.gt7.ps5Ip) {
       if (proj) {
         state.player.lap.lapDistance = proj.distanceM;
         state.player.lateralM = proj.lateralM;
+
+        // Once the circuit is identified by geometry it can carry priors and a
+        // delta reference the same way an F1 track id does.
+        loadPriors(track.key, "this circuit");
+
+        delta.setTrack(track.key, track.lengthM);
+        delta.update(
+          proj.distanceM,
+          Date.now() - gt7LapStart,
+          t.lapCount,
+          false,
+        );
+        state.delta = delta.brief();
+
         // GT7 never reports track limits, so we measure them: a lateral offset
         // well outside this driver's own normal line at this point of the
         // circuit is a genuine excursion.
@@ -266,8 +338,10 @@ if (config.gt7.ps5Ip) {
 }
 
 // ---------- Broadcast loop ----------
+let wasLive = false;
 setInterval(() => {
   const live = Date.now() - state.lastPacketAt < 3000;
+
   server.broadcast({
     type: "state",
     live,
@@ -277,16 +351,30 @@ setInterval(() => {
     player: state.player,
     opponents: state.opponents,
     coach: state.coach,
+    delta: state.delta,
     tyreSets: state.tyreSets,
     feedbackLevel: callouts.level,
   });
+
   if (live) {
     // The arc has to be updated before the callouts run, or the mood the
     // engineer speaks with is one tick stale.
     arc.update(state);
     callouts.tick();
+  } else if (wasLive && state.game === "gt7") {
+    // GT7 has no chequered flag event, so the session ends when the packets do.
+    endSession("gt7 telemetry stopped");
   }
+  wasLive = live;
 }, 100);
+
+// A clean exit should still bank the session rather than throwing it away.
+for (const sig of ["SIGINT", "SIGTERM"]) {
+  process.on(sig, () => {
+    endSession("bridge shutting down");
+    process.exit(0);
+  });
+}
 
 log.info(
   `PTT: ${config.pttMode} mode, F1 button mask 0x${config.f1.pttMask.toString(16)} (bind "UDP Action 1" in F1's controls)`,

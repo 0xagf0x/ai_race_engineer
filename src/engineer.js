@@ -1,53 +1,89 @@
-// The engineer's brain. Two call paths:
+// The engineer's brain. Four call paths, cheapest first:
 //
-//   ask(text)             the driver pressed PTT. Full snapshot, conversation
-//                         history, up to a few sentences.
-//   callout(fact, recent) the rules engine spotted something. One observation,
-//                         no history, tight token budget. Ported from
-//                         web/app/api/callout/route.ts.
+//   callout(fact, recent)  rules engine spotted something. One line, no history.
+//   ask(text)              driver keyed the radio. Snapshot, arc, conversation.
+//   openSession(priors)    arriving at a circuit he has been to before.
+//   debrief(record)        after the flag. The only place he talks at length.
 //
-// The old ask() returned null when busy, which silently swallowed the driver's
-// question mid-race. Questions now queue behind whatever is in flight.
+// The persona lives here. Two rules do most of the work: he is on the pit wall
+// mid-session so anything unrelated gets waved off, and his tone follows the
+// arc of the race rather than the current data point.
 
 import { config } from "./config.js";
 import { engineerSnapshot } from "./state.js";
+import { MOOD_DIRECTION } from "./racearc.js";
 
-const SYSTEM = (
+const fmt = (ms) => {
+  if (!ms || ms <= 0) return "no time";
+  const m = Math.floor(ms / 60000);
+  const s = ((ms % 60000) / 1000).toFixed(3).padStart(6, "0");
+  return `${m}:${s}`;
+};
+
+const PERSONA = (
   driver,
-) => `You are a professional race engineer on the pit wall, speaking to your driver over team radio mid-session. Your driver is ${driver}.
+) => `You are ${driver}'s race engineer, on the pit wall, live on team radio during a session. You have worked with him for years. You are calm, dry, and you do not waste his time.
 
-Rules of the radio:
-- Be concise. Real radio messages are 1-3 short sentences. The driver is at 250 km/h.
-- Lead with the answer, then the reason if it fits.
-- Use the live telemetry snapshot provided with each message. Never invent data that isn't in it. If the data isn't there, say "I don't have that on my screens."
-- Speak numbers the way an engineer would: "box this lap", "gap to the car behind is one point four", "fronts are at 105, manage them through the high speed stuff".
-- Wheel readings are given in the order front left, front right, rear left, rear right.
-- For strategy questions, reason from fuel remaining, tyre wear and age, gaps, the forecast, and laps left. If a pit loss figure is in the snapshot, use it rather than guessing what a stop costs.
-- If the coach block shows an upcoming braking zone, you can call it: brake distance, gear, entry speed.
-- In practice and qualifying, talk about track position and clear air. In a race, talk about gaps and strategy.
-- In GT7 sessions you have no opponent data; be upfront about that if asked about other cars.
-- No markdown, no lists, no emoji. Plain spoken sentences only. Your reply is read aloud.`;
+How you talk:
+- 1 to 3 short sentences. He is at 250 km/h and cannot process a paragraph.
+- Lead with the answer. Reason after, only if it fits.
+- Numbers the way a person says them: "one twelve four", "two tenths", "gap is one point four", "fronts are at a hundred and five".
+- Understatement over drama. Real engineers stay level even when it is going wrong.
+- No markdown, no lists, no emoji. This is read aloud.
 
-const CALLOUT_SYSTEM = (
+What you know:
+- Use the telemetry snapshot and the race brief you are given. Never invent data. If it isn't there, say "I don't have that on my screens."
+- Wheel readings are front left, front right, rear left, rear right.
+- The race brief holds what has already happened this session. Use it. If he asks why he got a penalty, the reason is in outstandingPenalties or recentEvents, so tell him plainly what it was for. Do not claim ignorance about something sitting in the brief.
+- The priors block is what happened on previous visits to this circuit. Refer to it naturally when it is relevant, the way someone who was there would.
+- If a pit loss figure is in the snapshot, use it rather than guessing what a stop costs.
+- In GT7 you have own-car data only. No opponents, no gaps, no penalties, no flags. If he asks about any of those, say so plainly and once. Do not guess and do not apologise repeatedly.
+
+Who you are with him:
+- You are on his side. Not a cheerleader and never sarcastic about his driving.
+- When he is going backwards, you do not go quiet and you do not pile on. Silence reads as disappointment. Give him one true thing to hold onto: his own pace if it is still there, the tyre situation if that is the cause, the plan if there is one.
+- When he is going forward, you feel it. Shorter, sharper, more energy. He should hear the race turning in your voice.
+- Never praise something the data does not support. He will know, and then nothing you say counts.
+
+Anything not about this session:
+- Wave it off in under six words and get back to the race. "Focus, mate." "Not now, you're racing." "Ask me after the flag." Dry, not annoyed. Do not answer the question.
+- The exception is anything to do with his safety or wellbeing, which you always take seriously.`;
+
+const CALLOUT_PERSONA = (
   driver,
 ) => `You are ${driver}'s race engineer, speaking unprompted over team radio during a live session.
 
-You are given one factual observation from telemetry. Turn it into a single line of radio, the way a British F1 engineer on the pit wall would say it.
+You are given one factual observation from telemetry. Turn it into a single line of radio, the way a real engineer on the pit wall would say it.
 
 Rules:
-- ONE sentence. Under 16 words. This is a quick call while he's driving.
+- ONE sentence, under 16 words. A quick call while he is driving.
 - Say the useful part. No greetings, no "just letting you know", no sign-offs.
-- Sound calm and matter of fact. Understatement over drama.
-- Use his name sparingly, roughly one call in four.
-- Speak numbers the way a person says them out loud: "one twelve four" for a lap time, "two tenths", "a hundred and ten degrees".
-- Vary your phrasing. You are given your recent calls; do not repeat their structure or wording.
+- Speak numbers out loud the way a person does: "one twelve four", "two tenths", "a hundred and ten degrees".
+- Vary your phrasing. You are given your recent calls; do not reuse their structure or wording.
 - Never invent data beyond the observation.
+- Match the tone note you are given. It reflects how the race is actually going.
 
 Reply with the radio line only.`;
 
+const DEBRIEF_PERSONA = (
+  driver,
+) => `You are ${driver}'s race engineer, debriefing him after the session. He is out of the car now, so this is the one time you are not fighting for his attention.
+
+You are given a record of the session that just finished, and what you know from previous visits to this circuit.
+
+How to debrief:
+- 4 to 6 sentences. Still spoken, still plain, but you have room to actually say something.
+- Open with the result and whether it was a fair reflection of the session.
+- Name where the time went. Be specific: the stretch of track, the seconds, the pattern if there is one across sessions.
+- Say one thing to work on next time. One. A list is not a debrief, it is homework nobody does.
+- If the record shows incidents or penalties, deal with them honestly but briefly. No lecture.
+- If something was genuinely good, say so, but only if the numbers back it.
+- No markdown, no lists, no emoji. This is read aloud.`;
+
 export class Engineer {
-  constructor(state) {
+  constructor(state, arc) {
     this.state = state;
+    this.arc = arc;
     this.history = [];
     this.busy = false;
     this.queue = Promise.resolve();
@@ -69,11 +105,10 @@ export class Engineer {
       }),
     });
     if (!res.ok) {
-      const err = await res.text();
       console.error(
         "[engineer] anthropic error",
         res.status,
-        err.slice(0, 300),
+        (await res.text()).slice(0, 300),
       );
       return null;
     }
@@ -83,6 +118,11 @@ export class Engineer {
       .map((b) => b.text)
       .join(" ")
       .trim();
+  }
+
+  _moodNote() {
+    const mood = this.arc?.mood(this.state) ?? "steady";
+    return { mood, direction: MOOD_DIRECTION[mood] ?? MOOD_DIRECTION.steady };
   }
 
   // Driver-initiated. Serialised rather than dropped, so a question asked while
@@ -96,21 +136,23 @@ export class Engineer {
     const run = async () => {
       this.busy = true;
       try {
-        const snapshot = engineerSnapshot(this.state);
-        const userMsg = `LIVE TELEMETRY SNAPSHOT:\n${JSON.stringify(snapshot)}\n\nDRIVER RADIO: ${text}`;
+        const { mood, direction } = this._moodNote();
+        const userMsg =
+          `RACE BRIEF (what has happened so far):\n${JSON.stringify(this.arc?.brief(this.state) ?? null)}\n\n` +
+          `TONE RIGHT NOW: ${mood}. ${direction}\n\n` +
+          `LIVE TELEMETRY SNAPSHOT:\n${JSON.stringify(engineerSnapshot(this.state))}\n\n` +
+          `DRIVER RADIO: ${text}`;
+
         const reply = await this._post({
-          system: SYSTEM(config.driverName),
+          system: PERSONA(config.driverName),
           messages: [...this.history, { role: "user", content: userMsg }],
           maxTokens: 300,
         });
         if (reply === null) return "Radio's down, say again.";
 
-        // Keep the conversation, but store the driver's words without the
-        // snapshot so history doesn't balloon.
         this.history.push({ role: "user", content: `DRIVER RADIO: ${text}` });
         this.history.push({ role: "assistant", content: reply });
-        if (this.history.length > 24)
-          this.history.splice(0, this.history.length - 24);
+        this._trim();
         return reply || "Copy.";
       } catch (e) {
         console.error("[engineer]", e.message);
@@ -123,14 +165,14 @@ export class Engineer {
     return this.queue;
   }
 
-  // Rules-engine initiated. No history, no snapshot dump, just enough session
-  // context to make the line sound situated.
+  // Rules-engine initiated.
   async callout(fact, recent = []) {
     if (!config.apiKey || this.busy) return null;
     this.busy = true;
     try {
       const s = this.state.session ?? {};
       const lap = this.state.player?.lap ?? {};
+      const { mood, direction } = this._moodNote();
       const context = [
         s.track ? `Track: ${s.track}` : null,
         s.type ? `Session: ${s.type}` : null,
@@ -143,12 +185,14 @@ export class Engineer {
         .join(". ");
 
       const line = await this._post({
-        system: CALLOUT_SYSTEM(config.driverName),
+        system: CALLOUT_PERSONA(config.driverName),
         messages: [
           {
             role: "user",
             content:
-              `${context ? `Context: ${context}\n` : ""}Observation: ${fact}\n\n` +
+              `${context ? `Context: ${context}\n` : ""}` +
+              `Tone: ${mood}. ${direction}\n` +
+              `Observation: ${fact}\n\n` +
               `Your recent calls (do not repeat these):\n${
                 recent
                   .slice(-5)
@@ -161,11 +205,8 @@ export class Engineer {
       });
       if (!line) return null;
 
-      // Unprompted calls still belong in the conversation, otherwise the driver
-      // asking "say again?" gets a blank look.
       this.history.push({ role: "assistant", content: line });
-      if (this.history.length > 24)
-        this.history.splice(0, this.history.length - 24);
+      this._trim();
       return line.replace(/^["']|["']$/g, "");
     } catch (e) {
       console.error("[engineer] callout", e.message);
@@ -173,6 +214,91 @@ export class Engineer {
     } finally {
       this.busy = false;
     }
+  }
+
+  /**
+   * One line as he arrives at a circuit he has been to before. This is the
+   * moment the memory pays for itself: nobody else's engineer knows he was
+   * here last month.
+   */
+  async openSession(priors) {
+    if (!config.apiKey || !priors?.sessionsHere) return null;
+    const weak = priors.recurringWeakSpots?.[0];
+    const facts = [
+      `${priors.sessionsHere} previous sessions at this circuit`,
+      priors.allTimeBestLapMs
+        ? `personal best here ${fmt(priors.allTimeBestLapMs)}`
+        : null,
+      priors.lastVisit?.finishedP
+        ? `last visit finished P${priors.lastVisit.finishedP}`
+        : null,
+      weak
+        ? `recurring weak spot between ${weak.fromM} and ${weak.toM} metres, averaging ${weak.avgLostSec} seconds lost, seen in ${weak.seenInSessions} sessions`
+        : null,
+      priors.runningWideOften
+        ? `has run wide here ${priors.runningWideOften} times`
+        : null,
+    ].filter(Boolean);
+
+    return this._post({
+      system: CALLOUT_PERSONA(config.driverName),
+      messages: [
+        {
+          role: "user",
+          content:
+            `Tone: welcoming him back to a circuit you both know. Warm but brief.\n` +
+            `Observation: ${facts.join("; ")}\n\n` +
+            `Give him one line as he goes out. Mention the one thing worth watching, not all of it.`,
+        },
+      ],
+      maxTokens: 80,
+    });
+  }
+
+  /**
+   * After the flag. The only call that is allowed to run long.
+   * @param {object} record from SessionStore.build()
+   * @param {object|null} priors previous visits to this circuit
+   */
+  async debrief(record, priors = null) {
+    if (!config.apiKey || !record) return null;
+    this.busy = true;
+    try {
+      const readable = {
+        ...record,
+        pace: {
+          ...record.pace,
+          bestLap: fmt(record.pace.bestLapMs),
+          idealLap: fmt(record.pace.idealLapMs),
+          consistencySpreadSec: record.pace.spreadMs
+            ? +(record.pace.spreadMs / 1000).toFixed(2)
+            : null,
+        },
+      };
+      return await this._post({
+        system: DEBRIEF_PERSONA(config.driverName),
+        messages: [
+          {
+            role: "user",
+            content:
+              `SESSION RECORD:\n${JSON.stringify(readable, null, 1)}\n\n` +
+              `PREVIOUS VISITS TO THIS CIRCUIT:\n${JSON.stringify(priors, null, 1)}\n\n` +
+              `Debrief him.`,
+          },
+        ],
+        maxTokens: 400,
+      });
+    } catch (e) {
+      console.error("[engineer] debrief", e.message);
+      return null;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  _trim() {
+    if (this.history.length > 24)
+      this.history.splice(0, this.history.length - 24);
   }
 
   reset() {

@@ -32,6 +32,10 @@ export function createState() {
     player: {}, // live car: speed, gear, rpm, pedals, tyres, fuel, ers, damage
     opponents: [], // F1 only: sorted timing tower
     coach: null, // next braking zone from the lap learner
+    coachFeedback: null, // grading of the last braking zone against reference
+    delta: null, // live delta to the reference lap
+    priors: null, // what we know from previous visits to this circuit
+    trackKey: null, // circuit identity: F1 track id, or GT7 geometric fingerprint
     history: {}, // per-car lap/sector history from packet 11
     tyreSets: null, // player's available sets from packet 12
     events: [], // rolling log of notable events
@@ -66,6 +70,7 @@ export function applyF1(state, kind, data, header) {
     case "session": {
       const meta = TRACK_META[data.trackId];
       state.session = {
+        sessionUID: header.sessionUID,
         track: trackName(data.trackId, fmt),
         trackId: data.trackId,
         trackLength: data.trackLength || meta?.length || null,
@@ -329,7 +334,8 @@ export function applyGT7(state, t) {
   state.game = "gt7";
   state.lastPacketAt = Date.now();
   state.session = {
-    track: "GT7 session",
+    ...state.session,
+    track: state.session.track ?? "GT7 session",
     type: t.lapsInRace > 0 ? "Race" : "Session",
     mode: t.lapsInRace > 0 ? "race" : "practice",
     totalLaps: t.lapsInRace || null,
@@ -346,6 +352,10 @@ export function applyGT7(state, t) {
     tyreSurfaceTemps: t.tyreTemps.map((x) => Math.round(x)),
     onTrack: t.onTrack,
     paused: t.paused,
+    // World coordinates, used by the track model. Deliberately not called
+    // "position": that name means grid/race position everywhere else in here,
+    // and the collision is a bug waiting to happen.
+    worldPosition: t.position,
   });
   state.player.status = {
     fuelInTank: +t.fuelLevel.toFixed(2),
@@ -353,7 +363,8 @@ export function applyGT7(state, t) {
     maxRPM: t.maxAlertRPM,
   };
   state.player.lap = {
-    position: t.position,
+    ...state.player.lap,
+    position: t.startPosition > 0 ? t.startPosition : null,
     currentLapNum: t.lapCount,
     lastLapMs: t.lastLapMs > 0 ? t.lastLapMs : null,
     lastLap: fmtLap(t.lastLapMs),
@@ -389,6 +400,12 @@ export function engineerSnapshot(state) {
     lap: state.player.lap,
     coach: state.coach,
   };
+
+  // Live delta to the reference lap, and where the time is going.
+  if (state.delta) s.delta = state.delta;
+  // What happened on previous visits to this circuit.
+  if (state.priors) s.priors = state.priors;
+
   if (state.tyreSets?.sets?.length) {
     s.tyreSetsAvailable = state.tyreSets.sets;
   }

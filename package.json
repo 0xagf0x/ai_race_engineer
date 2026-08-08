@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "inspect": "node tools/inspect.js",
-    "test": "node --test \"test/*.test.js\""
+    "test": "RACE_DATA_DIR=.tmp-test-data node --test \"test/*.test.js\""
   },
   "engines": {
     "node": ">=20"

@@ -19,7 +19,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const DATA_DIR = path.resolve("data/tracks");
+const DATA_DIR = process.env.RACE_DATA_DIR
+  ? path.resolve(process.env.RACE_DATA_DIR, "tracks")
+  : path.resolve("data/tracks");
 const SPACING_M = 5; // centreline resolution
 const SEARCH_WINDOW = 40; // points either side of the last match
 const MIN_LAP_POINTS = 200;

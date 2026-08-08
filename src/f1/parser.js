@@ -421,7 +421,12 @@ export function parseParticipants(buf, h) {
 
 // ---- Packet 5: Car Setups ----
 // Only the leading fields, which are the ones worth talking about on the radio.
-// Trailing byte count changed in 2024 (nextFrontWingValue f32), so try both.
+//
+// 1133 bytes in F1 25 resolves to 22 cars x 50b with 4 trailing. Note that
+// 20 x 55 also divides cleanly, so the solver is right here because it tries
+// the preferred grid size first, not because the size alone proves it. If a
+// future format changes the trailing byte count this is the first place to
+// check.
 export function parseCarSetups(buf, h) {
   const layout =
     solveLayout(buf, {
@@ -665,6 +670,12 @@ export const PacketId = {
   // packet carrying the new-regulation channels). Its id is not confirmed here,
   // so ids we don't recognise are recorded by noteUnknownPacket and reported by
   // npm run inspect rather than being guessed at.
+  // Confirmed present in F1 25 at 1131 bytes, and not per-car: the payload
+  // divides by no plausible grid size. Named so it stops reporting as UNKNOWN,
+  // but deliberately not parsed, because guessing offsets on a packet whose
+  // layout we have not verified is how the engineer starts saying confident
+  // wrong things.
+  LAP_POSITIONS: 15,
 };
 
 export function noteUnknownPacket(packetId, length) {

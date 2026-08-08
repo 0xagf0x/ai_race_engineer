@@ -140,23 +140,35 @@ export function evaluate(state, mem) {
   }
 
   // --- fuel ---
-  if (st.fuelRemainingLaps != null) {
-    if (st.fuelRemainingLaps < 0.5) {
+  // fuelDeltaLaps is the MFD surplus: laps of fuel BEYOND what finishing
+  // requires. Positive is margin, negative is a shortfall. It is not a range,
+  // which is why the old "under half a lap left" wording read a healthy +2.8
+  // as nearly dry.
+  if (st.fuelDeltaLaps != null) {
+    if (st.fuelDeltaLaps < 0) {
       out.push({
-        id: "fuel_critical",
+        id: "fuel_short",
         priority: 4,
-        cooldownMs: 20000,
-        fact: "fuel critical, under half a lap of margin",
+        cooldownMs: 45000,
+        fact: `fuel is ${Math.abs(st.fuelDeltaLaps).toFixed(1)} laps short of the finish, needs saving now`,
       });
-    } else if (st.fuelRemainingLaps < 2) {
+    } else if (st.fuelDeltaLaps < 0.5) {
       out.push({
-        id: "fuel_low",
+        id: "fuel_tight",
         priority: 3,
         cooldownMs: 60000,
-        fact: `fuel margin down to ${st.fuelRemainingLaps.toFixed(1)} laps`,
+        fact: `fuel margin down to ${st.fuelDeltaLaps.toFixed(1)} of a lap, no room left`,
+      });
+    } else if (st.fuelDeltaLaps < 1.5) {
+      out.push({
+        id: "fuel_low",
+        priority: 2,
+        cooldownMs: 90000,
+        fact: `fuel margin ${st.fuelDeltaLaps.toFixed(1)} laps, worth a lift and coast`,
       });
     }
   } else if (st.fuelInTank != null && st.fuelCapacity) {
+    // GT7 and any session without an MFD delta: tank percentage is all we have.
     const pct = (st.fuelInTank / st.fuelCapacity) * 100;
     if (pct < 8)
       out.push({

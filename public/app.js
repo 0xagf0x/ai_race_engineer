@@ -397,7 +397,7 @@ function render() {
   if (st.fuelInTank != null)
     rows.push([
       "Fuel",
-      `${st.fuelInTank} kg${st.fuelRemainingLaps != null ? ` · ${st.fuelRemainingLaps} laps` : ""}`,
+      `${st.fuelInTank} kg${st.fuelDeltaLaps != null ? ` · ${st.fuelDeltaLaps > 0 ? "+" : ""}${st.fuelDeltaLaps} laps` : ""}`,
     ]);
   if (st.ersStorePct != null)
     rows.push([

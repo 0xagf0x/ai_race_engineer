@@ -1,0 +1,84 @@
+{
+  "trackKey": "f1-17",
+  "track": "Red Bull Ring",
+  "game": "f1",
+  "sessionType": "Race",
+  "mode": "race",
+  "finishedAt": 1786213344766,
+  "durationMin": 10.7,
+  "result": {
+    "startedP": 1,
+    "finishedP": 20,
+    "netPlaces": -19,
+    "totalLaps": 8,
+    "status": "Active"
+  },
+  "pace": {
+    "bestLapMs": 72630,
+    "idealLapMs": 70116,
+    "referenceLapMs": 72579,
+    "spreadMs": 646,
+    "lapCount": 4
+  },
+  "weakSegments": [
+    {
+      "fromM": 400,
+      "toM": 800,
+      "deltaMs": 2159,
+      "lostSec": 2.16
+    },
+    {
+      "fromM": 2000,
+      "toM": 2200,
+      "deltaMs": 292,
+      "lostSec": 0.29
+    },
+    {
+      "fromM": 1200,
+      "toM": 1400,
+      "deltaMs": 218,
+      "lostSec": 0.22
+    },
+    {
+      "fromM": 2600,
+      "toM": 2800,
+      "deltaMs": 83,
+      "lostSec": 0.08
+    }
+  ],
+  "tyres": {
+    "compound": "Hard",
+    "actual": "C3",
+    "ageLaps": 0,
+    "worstWearPct": 0
+  },
+  "incidents": [
+    {
+      "kind": "incident",
+      "lap": 5,
+      "text": "contact with LECLERC"
+    },
+    {
+      "kind": "incident",
+      "lap": 5,
+      "text": "contact with VERSTAPPEN"
+    },
+    {
+      "kind": "incident",
+      "lap": 6,
+      "text": "contact with VERSTAPPEN"
+    },
+    {
+      "kind": "incident",
+      "lap": 7,
+      "text": "contact with VERSTAPPEN"
+    },
+    {
+      "kind": "incident",
+      "lap": 7,
+      "text": "contact with VERSTAPPEN"
+    }
+  ],
+  "penalties": [],
+  "pitLossSec": 19.5
+}

@@ -164,7 +164,11 @@ export function applyF1(state, kind, data, header) {
       state.player.status = {
         fuelInTank: +me.fuelInTank.toFixed(2),
         fuelCapacity: +me.fuelCapacity.toFixed(1),
-        fuelRemainingLaps: +me.fuelRemainingLaps.toFixed(2),
+        // The MFD value, which is a surplus and not a range: laps of fuel
+        // beyond what finishing requires. Negative means genuinely short. Named
+        // for what it is, because the old name had the engineer reporting a
+        // healthy +2.8 lap margin as "under three laps of fuel left".
+        fuelDeltaLaps: +me.fuelRemainingLaps.toFixed(2),
         fuelMix: FUEL_MIX[me.fuelMix] ?? "",
         tyre: VISUAL_TYRES[me.visualTyreCompound] ?? "?",
         tyreCompound: ACTUAL_TYRES[me.actualTyreCompound] ?? "?",

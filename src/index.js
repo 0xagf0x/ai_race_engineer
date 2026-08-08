@@ -215,6 +215,7 @@ f1sock.on("message", (buf) => {
     case F1.PacketId.LOBBY:
     case F1.PacketId.MOTION_EX:
     case F1.PacketId.TIME_TRIAL:
+    case F1.PacketId.LAP_POSITIONS:
       break;
     default:
       F1.noteUnknownPacket(header.packetId, buf.length);

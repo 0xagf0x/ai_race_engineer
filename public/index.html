@@ -46,17 +46,23 @@
             <div class="pbar"><div id="brkBar" class="fill brk"></div></div>
           </div>
         </div>
+        <!--
+          data-i indexes straight into the wheel arrays, which the bridge
+          normalises to FL FR RL RR in state.js. These were 2,3,0,1 and showed
+          the rear readings in the front boxes, which made the engineer look
+          wrong when he was reading the telemetry correctly.
+        -->
         <div class="tyres" id="tyres">
-          <div class="tyre" data-i="2">
-            <span class="tt">–</span><span class="tw"></span>
-          </div>
-          <div class="tyre" data-i="3">
-            <span class="tt">–</span><span class="tw"></span>
-          </div>
           <div class="tyre" data-i="0">
             <span class="tt">–</span><span class="tw"></span>
           </div>
           <div class="tyre" data-i="1">
+            <span class="tt">–</span><span class="tw"></span>
+          </div>
+          <div class="tyre" data-i="2">
+            <span class="tt">–</span><span class="tw"></span>
+          </div>
+          <div class="tyre" data-i="3">
             <span class="tt">–</span><span class="tw"></span>
           </div>
         </div>
@@ -86,7 +92,8 @@
         <div class="chat" id="chat">
           <div class="msg eng">
             Radio check. Bind <b>UDP Action 1</b> in F1's controls as your talk
-            button, or hold the button below / spacebar.
+            button, hold the button below or spacebar, or turn on the wake word
+            and say "radio".
           </div>
         </div>
         <div class="radioctl">
@@ -97,6 +104,13 @@
               <option value="low">Low, key moments</option>
               <option value="medium">Medium, regular</option>
               <option value="high">High, constant</option>
+            </select>
+          </label>
+          <label class="levelrow">
+            <span>WAKE WORD</span>
+            <select id="wakeWord">
+              <option value="off">Off</option>
+              <option value="on">On, say "radio"</option>
             </select>
           </label>
           <button id="pttBtn" class="pttbtn" aria-label="Hold to talk">

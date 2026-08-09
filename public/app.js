@@ -14,6 +14,15 @@ let recognition = null;
 let transcriptBuf = "";
 let serverTts = false;
 
+// GT7
+let wakeRecognition = null;
+let wakeEnabled = false;
+let wakeRestartTimer = null;
+
+// Spoken triggers. Kept short and distinctive: a long phrase is harder to catch
+// mid-corner, and a common word fires on ordinary speech.
+const WAKE_WORDS = ["radio", "engineer", "box box"];
+
 // ---------------- WebSocket ----------------
 function connect() {
   ws = new WebSocket(`ws://${location.host}`);
@@ -84,6 +93,73 @@ function ensureRecognition() {
   return r;
 }
 
+// Always-on listener for the wake word. Separate from the push-to-talk
+// recognition instance: this one runs continuously at low stakes, and hands
+// over to the real one the moment it hears a trigger.
+//
+// GT7 sends no controller buttons, so without this a GT7 driver has no way to
+// key the radio without reaching for a keyboard.
+function startWakeListening() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR || !wakeEnabled) return;
+
+  const r = new SR();
+  r.continuous = true;
+  r.interimResults = true;
+  r.lang = "en-GB";
+
+  r.onresult = (e) => {
+    // Never while the engineer is talking: on speakers his own voice comes
+    // back through the mic and can carry the trigger.
+    if (currentAudio || speechSynthesis.speaking || micActive) return;
+
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const said = e.results[i][0].transcript.trim().toLowerCase();
+      // Trigger only at the start of an utterance, so the word appearing
+      // mid-sentence in ordinary speech does not open the radio.
+      const hit = WAKE_WORDS.find((w) => said.startsWith(w));
+      if (hit) {
+        r.stop();
+        startTalking();
+        return;
+      }
+    }
+  };
+
+  // Chrome ends recognition after a silence, so it has to be restarted for as
+  // long as the feature is on.
+  r.onend = () => {
+    if (!wakeEnabled) return;
+    clearTimeout(wakeRestartTimer);
+    wakeRestartTimer = setTimeout(startWakeListening, 400);
+  };
+
+  r.onerror = (e) => {
+    if (e.error === "not-allowed") {
+      wakeEnabled = false;
+      addMsg("eng", "Mic permission denied, so the wake word is off.");
+      return;
+    }
+    // no-speech and aborted are routine; onend will restart.
+  };
+
+  wakeRecognition = r;
+  try {
+    r.start();
+  } catch {
+    /* already running */
+  }
+}
+
+function stopWakeListening() {
+  wakeEnabled = false;
+  clearTimeout(wakeRestartTimer);
+  try {
+    wakeRecognition?.stop();
+  } catch {}
+  wakeRecognition = null;
+}
+
 function startTalking() {
   if (micActive) return;
   micActive = true;
@@ -116,6 +192,7 @@ function stopTalking() {
     setTimeout(() => {
       const text = transcriptBuf.trim();
       if (text) askEngineer(text);
+      if (wakeEnabled) startWakeListening();
     }, 350);
   }
 }
@@ -342,6 +419,17 @@ $("typeForm").addEventListener("submit", (e) => {
 // Feedback level, if the control exists in the markup
 $("feedbackLevel")?.addEventListener("change", (e) => {
   send({ type: "feedback-level", level: e.target.value });
+});
+
+// Wake word. Off by default: continuous recognition costs battery and CPU, and
+// on speakers the engineer's own voice can come back through the mic.
+$("wakeWord")?.addEventListener("change", (e) => {
+  if (e.target.value === "on") {
+    wakeEnabled = true;
+    startWakeListening();
+  } else {
+    stopWakeListening();
+  }
 });
 
 // ---------------- Rendering ----------------

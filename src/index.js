@@ -13,6 +13,7 @@ import { TrackModel } from "./gt7/track-model.js";
 import { Delta } from "./delta.js";
 import { SessionStore } from "./sessions.js";
 import { Strategy } from "./strategy.js";
+import { SlipDetector } from "./slip.js";
 
 const log = {
   info: (...a) => console.log("[bridge]", ...a),
@@ -30,12 +31,16 @@ const track = new TrackModel();
 const delta = new Delta();
 const sessions = new SessionStore();
 const strategy = new Strategy();
+const slip = new SlipDetector();
 
 let pttDown = false;
 
-// GT7 sends no lap timer, so we keep our own for the delta.
+// GT7 sends no lap timer, so we keep our own for the delta. gt7LastSeen exists
+// because wall clock keeps running through a pause and the delta would count
+// the paused minutes as lap time.
 let gt7Lap = null;
 let gt7LapStart = Date.now();
+let gt7LastSeen = Date.now();
 
 const say = (text) =>
   text && server.broadcast({ type: "engineer", text, auto: true });
@@ -93,6 +98,9 @@ const server = startServer(
         callouts.setLevel(msg.level);
         log.info(`Feedback level: ${callouts.level}`);
         break;
+      case "units":
+        callouts.setUnits(msg.units);
+        break;
       case "speaking":
         callouts.setSpeaking(!!msg.speaking);
         break;
@@ -118,9 +126,9 @@ f1sock.on("message", (buf) => {
   if (!header) return;
 
   switch (header.packetId) {
-    case F1.PacketId.MOTION: {
-      const d = F1.parseMotion(buf, header);
-      if (d) state._motionRaw = d;
+    case F1.PacketId.MOTION_EX: {
+      const d = F1.parseMotionEx(buf, header);
+      if (d) state._slipRatio = d.slipRatio;
       break;
     }
     case F1.PacketId.SESSION: {
@@ -188,6 +196,19 @@ f1sock.on("message", (buf) => {
         state.coach = coach.next(lap.lapDistance);
         state.coachFeedback = coach.feedback;
         state.delta = delta.brief();
+        // Real slip ratio when Motion Ex parsed, inference otherwise. F1's
+        // speed is an integer in kph, so the derivative is too quantised to
+        // infer from at low speed, which is exactly where wheelspin happens.
+        const spun = state._slipRatio
+          ? slip.fromSlipRatio(
+              state._slipRatio,
+              state.player.throttle,
+              state.player.speed,
+            )
+          : slip.update(state.player.speed, state.player.throttle);
+        if (spun) {
+          server.broadcast({ type: "slip" });
+        }
       }
       break;
     }
@@ -301,12 +322,31 @@ if (config.gt7.ps5Ip) {
   startGT7(
     config.gt7,
     (t) => {
+      // Paused is not disconnected. The packets keep flowing while the game is
+      // paused, so the timestamp is refreshed to hold the session open, but
+      // nothing else is updated: a paused car has no pace, no position change,
+      // and no lap in progress worth recording.
+      state.lastPacketAt = Date.now();
+      state.paused = !!t.paused;
       if (t.paused) return;
       applyGT7(state, t);
 
-      // Geometry first: the track model turns world position into an exact lap
-      // distance, which is what the coach and the delta both key off. Until a
-      // full lap has been learned, fall back to the integrated estimate.
+      // GT7 sends no chequered flag, and telemetry keeps flowing through the
+      // replay and the results screen. The lap counter passing the race
+      // distance is the only signal the race is over.
+      const finished = t.lapsInRace > 0 && t.lapCount > t.lapsInRace;
+      if (finished && !state._gt7Finished) {
+        state._gt7Finished = true;
+        endSession("gt7 race finished");
+      }
+      // A new race resets the counter, which is what clears the flag. Checking
+      // lapCount <= 1 alone was not enough: in the menus the counter holds
+      // whatever it finished on, so the flag never cleared.
+      if (t.lapsInRace > 0 && t.lapCount <= 1) state._gt7Finished = false;
+      // Nothing past the flag is worth coaching. The car in the replay is not
+      // being driven, and the results screen is not a session.
+      if (state._gt7Finished) return;
+
       track.addSample({
         x: t.position.x,
         z: t.position.z,
@@ -317,7 +357,13 @@ if (config.gt7.ps5Ip) {
       if (t.lapCount !== gt7Lap) {
         gt7Lap = t.lapCount;
         gt7LapStart = Date.now();
+        gt7LastSeen = Date.now();
       }
+      // Wall clock keeps running through a pause, so the gap since the last
+      // packet is added back to the lap start rather than counted as lap time.
+      const sinceSeen = Date.now() - gt7LastSeen;
+      if (sinceSeen > 500) gt7LapStart += sinceSeen;
+      gt7LastSeen = Date.now();
 
       coach.setTrack(track.key ?? "gt7-learning");
       // Null until the first full lap builds the centreline, so this has to run
@@ -334,6 +380,9 @@ if (config.gt7.ps5Ip) {
       const distM = proj?.distanceM ?? coach.gt7Dist;
       state.coach = coach.next(distM);
       state.coachFeedback = coach.feedback;
+      if (slip.update(state.player.speed, t.throttle)) {
+        server.broadcast({ type: "slip" });
+      }
 
       if (proj) {
         state.player.lap.lapDistance = proj.distanceM;
@@ -369,7 +418,12 @@ if (config.gt7.ps5Ip) {
 // ---------- Broadcast loop ----------
 let wasLive = false;
 setInterval(() => {
-  const live = Date.now() - state.lastPacketAt < 3000;
+  // Three seconds is a pause, not a disconnection. F1 stops sending entirely
+  // while paused, so a short window had the engineer going quiet for the rest
+  // of the session every time the driver checked the MFD.
+  const sincePacket = Date.now() - state.lastPacketAt;
+  const live = sincePacket < 3000;
+  const gone = sincePacket > 30000;
 
   server.broadcast({
     type: "state",
@@ -382,17 +436,29 @@ setInterval(() => {
     coach: state.coach,
     delta: state.delta,
     tyreSets: state.tyreSets,
+    // The arc already tracks every lap; it just was not reaching the browser.
+    laps: arc.lapTimes,
+    bestLapMs: arc.bestLapMs || null,
     feedbackLevel: callouts.level,
   });
 
   if (live) {
-    // The arc has to be updated before the callouts run, or the mood the
-    // engineer speaks with is one tick stale.
-    arc.update(state);
-    callouts.tick();
-  } else if (wasLive && state.game === "gt7") {
-    // GT7 has no chequered flag event, so the session ends when the packets do.
+    // A paused game still sends packets, so the session stays open, but the
+    // arc and the callouts see nothing: a stationary car has no pace, no
+    // position change, and no lap in progress worth talking about.
+    if (!state.paused) {
+      // The arc has to be updated before the callouts run, or the mood the
+      // engineer speaks with is one tick stale.
+      arc.update(state);
+      callouts.tick();
+    }
+  } else if (wasLive && gone && state.game === "gt7") {
+    // GT7 has no chequered flag event, so a session that has genuinely stopped
+    // sending is over. Thirty seconds rather than three: a pause is not an
+    // ending, and banking the session early loses the whole race.
     endSession("gt7 telemetry stopped");
+    wasLive = false;
+    return;
   }
   wasLive = live;
 }, 100);

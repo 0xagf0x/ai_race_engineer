@@ -21,6 +21,10 @@ let wakeRestartTimer = null;
 let silenceTimer = null;
 let wakeTriggered = false;
 
+// Wheelspin tone. Off by default: an alert that fires when the driver already
+// knows is noise, and this one is inferred rather than measured.
+let slipBeep = localStorage.getItem("slipBeep") === "on";
+
 // How long a pause means "he has finished talking". Long enough not to cut off
 // someone thinking mid-sentence, short enough that the answer does not feel
 // delayed. Only used for the wake word: the button and the controller have an
@@ -35,19 +39,24 @@ const WAKE_WORDS = ["radio", "engineer", "box box"];
 // only, so nothing downstream of the socket has to know about it.
 let units = localStorage.getItem("units") === "mph" ? "mph" : "kmh";
 const KPH_TO_MPH = 0.621371;
-const M_TO_FT = 3.28084;
 
 const speedOut = (kph) =>
   kph == null ? 0 : Math.round(units === "mph" ? kph * KPH_TO_MPH : kph);
 const speedUnit = () => (units === "mph" ? "mph" : "km/h");
-const distOut = (m) =>
-  m == null ? 0 : Math.round(units === "mph" ? m * M_TO_FT : m);
-const distUnit = () => (units === "mph" ? "ft" : "m");
+// Distances stay metric whatever the speed unit: brake markers are metre
+// boards at every circuit, in both games and in real racing.
+const distOut = (m) => (m == null ? 0 : Math.round(m));
+const distUnit = () => "m";
 
 // ---------------- WebSocket ----------------
 function connect() {
   ws = new WebSocket(`ws://${location.host}`);
-  ws.onopen = () => console.log("bridge connected");
+  ws.onopen = () => {
+    console.log("bridge connected");
+    // Reconnects and reloads both land here, and the bridge does not persist
+    // the choice, so it is re-sent rather than assumed.
+    send({ type: "units", units });
+  };
   ws.onclose = () => setTimeout(connect, 1500);
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
@@ -64,6 +73,9 @@ function connect() {
         break;
       case "engineer-thinking":
         setRadioState("thinking");
+        break;
+      case "slip":
+        if (slipBeep) slipTone();
         break;
       case "engineer":
         onEngineer(msg);
@@ -180,8 +192,9 @@ function startWakeListening() {
   wakeRecognition = r;
   try {
     r.start();
-  } catch {
-    /* already running */
+    console.log("[wake] listening");
+  } catch (e) {
+    console.log("[wake] start failed:", e.message);
   }
 }
 
@@ -323,6 +336,28 @@ function squelch(open) {
   }
 }
 
+// Short, low, and nothing like the squelch: a radio noise would read as the
+// engineer about to speak. One beep on the rising edge rather than a tone for
+// the duration, because a continuous alarm during a long slide is telling the
+// driver something he worked out at the start of it.
+function slipTone() {
+  try {
+    const ac = ctx();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(320, ac.currentTime);
+    gain.gain.setValueAtTime(0.0001, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, ac.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.12);
+    osc.connect(gain).connect(ac.destination);
+    osc.start();
+    osc.stop(ac.currentTime + 0.13);
+  } catch {
+    /* audio context blocked until first interaction */
+  }
+}
+
 let currentAudio = null;
 function cancelSpeech() {
   speechSynthesis.cancel();
@@ -426,9 +461,10 @@ pttBtn.addEventListener("mouseleave", () => micActive && stopTalking());
 pttBtn.addEventListener("touchstart", down, { passive: false });
 pttBtn.addEventListener("touchend", up);
 
-const typing = () =>
-  document.activeElement === $("typeInput") ||
-  document.activeElement?.tagName === "SELECT";
+// Only the text input should swallow the spacebar. A select that still has
+// focus after a change should not, or picking a dropdown option silently
+// disables push-to-talk until the driver clicks elsewhere.
+const typing = () => document.activeElement === $("typeInput");
 document.addEventListener("keydown", (e) => {
   if (e.code === "Space" && !e.repeat && !typing()) {
     e.preventDefault();
@@ -455,6 +491,7 @@ $("typeForm").addEventListener("submit", (e) => {
 // Feedback level, if the control exists in the markup
 $("feedbackLevel")?.addEventListener("change", (e) => {
   send({ type: "feedback-level", level: e.target.value });
+  e.target.blur();
 });
 
 // Units. Persisted so the choice survives a reload, and applied immediately
@@ -463,7 +500,12 @@ $("units")?.addEventListener("change", (e) => {
   units = e.target.value === "mph" ? "mph" : "kmh";
   localStorage.setItem("units", units);
   $("speedUnit").textContent = speedUnit();
+  // The rules build their facts on the bridge, so the engineer has to be told
+  // too. Converting only in the browser left him speaking metric at a driver
+  // reading imperial.
+  send({ type: "units", units });
   render();
+  e.target.blur();
 });
 const unitSel = $("units");
 if (unitSel) {
@@ -480,6 +522,7 @@ $("wakeWord")?.addEventListener("change", (e) => {
   } else {
     stopWakeListening();
   }
+  e.target.blur();
 });
 
 // Wear to colour. Green through amber to red across the range that actually
@@ -506,6 +549,14 @@ function wearColour(pct) {
   const t = Math.max(0, Math.min(1, (p - lo.at) / span));
   const mix = lo.rgb.map((c, i) => Math.round(c + (hi.rgb[i] - c) * t));
   return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
+}
+
+// Milliseconds to a lap time. Separate from fmtSec, which takes seconds.
+function fmtLapMs(ms) {
+  if (!ms || ms <= 0) return "—";
+  const m = Math.floor(ms / 60000);
+  const s = ((ms % 60000) / 1000).toFixed(3).padStart(6, "0");
+  return `${m}:${s}`;
 }
 
 // Seconds to a lap time string, for the reference readout.
@@ -664,6 +715,50 @@ function render() {
   $("statRows").innerHTML = rows
     .map(([k, v]) => `<div class="row"><span>${k}</span><b>${v}</b></div>`)
     .join("");
+
+  // Lap list. Newest first, coloured the way a timing screen does: purple for
+  // the session best, green for a lap that beat the previous best when it was
+  // set, amber for close to it, grey for the rest.
+  const laps = state.laps ?? [];
+  const bestMs = state.bestLapMs;
+  const lapEl = $("lapList");
+  if (laps.length && lapEl) {
+    let runningBest = Infinity;
+    const lapRows = laps.map((l) => {
+      const wasPb = l.ms > 0 && l.ms < runningBest;
+      if (wasPb) runningBest = l.ms;
+      const isBest = bestMs && l.ms === bestMs;
+      const offBest = bestMs && l.ms > 0 ? (l.ms - bestMs) / 1000 : null;
+      const cls = isBest
+        ? "best"
+        : wasPb
+          ? "pb"
+          : offBest != null && offBest < 0.3
+            ? "near"
+            : "";
+      return { lap: l.lap, ms: l.ms, cls, offBest };
+    });
+
+    lapEl.innerHTML =
+      `<div class="lhead">LAPS</div>` +
+      lapRows
+        .reverse()
+        .map(
+          (r) => `
+        <div class="laprow ${r.cls}">
+          <span class="ln">${r.lap}</span>
+          <span class="lt">${fmtLapMs(r.ms)}</span>
+          <span class="ld">${
+            r.offBest == null || r.offBest === 0
+              ? ""
+              : `+${r.offBest.toFixed(3)}`
+          }</span>
+        </div>`,
+        )
+        .join("");
+  } else if (lapEl) {
+    lapEl.innerHTML = "";
+  }
 
   const lap = p.lap || {};
   const lapBits = [

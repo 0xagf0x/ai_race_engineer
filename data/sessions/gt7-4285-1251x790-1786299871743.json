@@ -1,0 +1,70 @@
+{
+  "trackKey": "gt7-4285-1251x790",
+  "track": "GT7 session",
+  "game": "gt7",
+  "sessionType": "Session",
+  "mode": "practice",
+  "finishedAt": 1786299871743,
+  "durationMin": 6.4,
+  "result": {
+    "startedP": null,
+    "finishedP": null,
+    "netPlaces": 0,
+    "totalLaps": 4,
+    "status": null
+  },
+  "pace": {
+    "bestLapMs": 85788,
+    "idealLapMs": null,
+    "referenceLapMs": 30076,
+    "spreadMs": 1686,
+    "lapCount": 3
+  },
+  "weakSegments": [],
+  "tyres": {
+    "compound": null,
+    "actual": null,
+    "ageLaps": null,
+    "worstWearPct": null
+  },
+  "incidents": [
+    {
+      "kind": "wide",
+      "lap": 1,
+      "text": "ran wide at 1398 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 1,
+      "text": "ran wide at 1398 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 1,
+      "text": "ran wide at 1399 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 1,
+      "text": "ran wide at 1399 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1398 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1399 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1399 metres"
+    }
+  ],
+  "penalties": [],
+  "pitLossSec": null,
+  "stints": []
+}

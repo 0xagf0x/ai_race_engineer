@@ -1,0 +1,88 @@
+{
+  "trackKey": "f1-17",
+  "track": "Red Bull Ring",
+  "game": "f1",
+  "sessionType": "Race",
+  "mode": "race",
+  "finishedAt": 1786302948253,
+  "durationMin": 3,
+  "result": {
+    "startedP": null,
+    "finishedP": 5,
+    "netPlaces": 0,
+    "totalLaps": 3,
+    "status": "Active"
+  },
+  "pace": {
+    "bestLapMs": 71725,
+    "idealLapMs": 69340,
+    "referenceLapMs": 69000,
+    "spreadMs": null,
+    "lapCount": 2
+  },
+  "weakSegments": [
+    {
+      "fromM": 2600,
+      "toM": 3400,
+      "deltaMs": 1224,
+      "lostSec": 1.22
+    },
+    {
+      "fromM": 1200,
+      "toM": 1800,
+      "deltaMs": 700,
+      "lostSec": 0.7
+    },
+    {
+      "fromM": 3600,
+      "toM": 4200,
+      "deltaMs": 673,
+      "lostSec": 0.67
+    },
+    {
+      "fromM": 0,
+      "toM": 600,
+      "deltaMs": 369,
+      "lostSec": 0.37
+    }
+  ],
+  "tyres": {
+    "compound": "Soft",
+    "actual": "C5",
+    "ageLaps": 2,
+    "worstWearPct": 7
+  },
+  "incidents": [
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with PIASTRI"
+    },
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with ANTONELLI"
+    },
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with VERSTAPPEN"
+    }
+  ],
+  "penalties": [],
+  "pitLossSec": null,
+  "stints": [
+    {
+      "compound": "C5",
+      "startLap": 2,
+      "endLap": 3,
+      "laps": [
+        {
+          "age": 1,
+          "ms": 71725,
+          "at": 143.57522583007812
+        }
+      ]
+    }
+  ]
+}

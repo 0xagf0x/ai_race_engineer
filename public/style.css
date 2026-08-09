@@ -313,6 +313,54 @@ body {
   color: var(--dim);
 }
 
+/* ---------- lap list ---------- */
+/* Newest at the top, so the lap in progress is always in the same place and
+   the eye does not have to hunt down a growing list mid-corner. */
+.laplist {
+  margin-top: 10px;
+  overflow-y: auto;
+  font-size: 12px;
+  min-height: 0;
+}
+.laprow {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 2px;
+  border-bottom: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.laprow .ln {
+  color: var(--dim);
+  font-size: 11px;
+}
+.laprow .lt {
+  font-weight: 600;
+}
+.laprow .ld {
+  color: var(--dim);
+  font-size: 11px;
+}
+/* Timing-screen convention: purple is the session best, green a lap that beat
+   your previous best, yellow close to it, grey everything else. */
+.laprow.best .lt {
+  color: var(--purple);
+}
+.laprow.pb .lt {
+  color: var(--green);
+}
+.laprow.near .lt {
+  color: var(--amber);
+}
+.laplist .lhead {
+  font-family: var(--disp);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--dim);
+  padding-bottom: 4px;
+}
+
 /* ---------- timing ---------- */
 .lapline {
   font-size: 13px;

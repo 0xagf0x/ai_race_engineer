@@ -27,6 +27,17 @@ const MIN_SPEED_KPH = 60;
 const ZONE_MATCH_M = 150; // within this of a reference zone counts as the same corner
 const MIN_ZONE_GAP_M = 60; // two zones closer than this are the same corner
 
+// Speed follows the dashboard's unit toggle. Distances do not: brake markers
+// are metre boards everywhere. Without this the grading text said "seven kph"
+// in a session whose every other reading was mph.
+let speedUnitSystem = "kmh";
+export function setCoachUnits(u) {
+  speedUnitSystem = u === "mph" ? "mph" : "kmh";
+}
+const spd = (kph) =>
+  Math.round(speedUnitSystem === "mph" ? kph * 0.621371 : kph);
+const spdUnit = () => (speedUnitSystem === "mph" ? "miles an hour" : "kph");
+
 export class Coach {
   constructor() {
     this.trackKey = null;
@@ -188,7 +199,7 @@ export class Coach {
       }
       if (Math.abs(speedDelta) >= 5) {
         parts.push(
-          `${Math.abs(speedDelta)} kph ${speedDelta > 0 ? "more" : "less"} minimum speed`,
+          `${spd(Math.abs(speedDelta))} ${spdUnit()} ${speedDelta > 0 ? "more" : "less"} minimum speed`,
         );
       }
       if (this._minGear !== z.gear && this._minGear < 9) {
@@ -201,7 +212,7 @@ export class Coach {
         cornerIndex: z.cornerIndex,
         onReference: parts.length === 0,
         text: parts.length
-          ? `corner ${z.cornerIndex}: ${parts.join(", ")}, entry ${Math.round(this._onsetSpeed)} kph`
+          ? `corner ${z.cornerIndex}: ${parts.join(", ")}, entry ${spd(this._onsetSpeed)} ${spdUnit()}`
           : `corner ${z.cornerIndex}: on reference`,
         ts: Date.now(),
       };

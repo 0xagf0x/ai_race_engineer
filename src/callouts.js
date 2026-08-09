@@ -13,6 +13,7 @@
 // to the car behind is that car's deltaAheadMs. See gapRules().
 //
 // Priorities: 1 chatter, 2 useful, 3 important, 4 urgent.
+import { setCoachUnits } from "./coach.js";
 
 export const LEVELS = {
   low: { minGapMs: 75000, minPriority: 3, label: "Low, key moments only" },
@@ -68,6 +69,22 @@ export const freshMemory = () => ({
   saidFuelTarget: null,
   saidPenaltySec: 0,
 });
+
+// Display units for anything spoken. The dashboard converts its own readouts,
+// but the facts are built here, so without this the engineer says "two hundred
+// and fifty kph" to a driver whose panel reads mph.
+let unitSystem = "kmh";
+export function setUnitSystem(u) {
+  unitSystem = u === "mph" ? "mph" : "kmh";
+}
+const spd = (kph) =>
+  kph == null ? null : Math.round(unitSystem === "mph" ? kph * 0.621371 : kph);
+const spdUnit = () => (unitSystem === "mph" ? "miles an hour" : "kph");
+// Distances stay metric whatever the speed unit. Brake markers are boards at
+// 100 and 50 metres at every circuit in the world, in both games and in real
+// racing, so a driver looking for the hundred board does not want to hear feet.
+const dist = (m) => (m == null ? null : Math.round(m));
+const distUnit = () => "metres";
 
 const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
 const WHEELS = ["front left", "front right", "rear left", "rear right"];
@@ -237,7 +254,7 @@ export function evaluate(state, mem) {
       id: "next_corner",
       priority: 1,
       cooldownMs: 4000,
-      fact: `brake in ${words(c.brakeInM)} metres from here, reference is gear ${words(c.gear)} and ${words(c.minSpeedKph)} kph minimum`,
+      fact: `brake in ${words(dist(c.brakeInM))} ${distUnit()} from here, reference is gear ${words(c.gear)} and ${words(spd(c.minSpeedKph))} ${spdUnit()} minimum`,
     });
   }
 
@@ -596,7 +613,10 @@ function gapRules(state, mem) {
         id: "gap_ahead",
         priority: gap < 1 ? 3 : 2,
         cooldownMs: 12000,
-        fact: `${behind.name} is ${secWords(gap)} behind and in range`,
+        fact:
+          gap < 1
+            ? `${ahead.name} is ${secWords(gap)} ahead, inside DRS range`
+            : `closing on ${ahead.name}, ${secWords(gap)} ahead`,
       });
     } else if (gap >= 3) {
       mem.saidGapAhead = null;
@@ -613,7 +633,7 @@ function gapRules(state, mem) {
         id: "under_pressure",
         priority: 3,
         cooldownMs: 12000,
-        fact: `${behind.name} is ${gap.toFixed(1)} behind and in range`,
+        fact: `${behind.name} is ${secWords(gap)} behind and in range`,
       });
     } else if (gap >= 1.2) {
       mem.saidGapBehind = null;
@@ -673,6 +693,11 @@ export class Callouts {
 
   setLevel(level) {
     if (level === "off" || LEVELS[level]) this.level = level;
+  }
+
+  setUnits(u) {
+    setUnitSystem(u);
+    setCoachUnits(u);
   }
 
   // Race events arrive out of band; queue them as one-shot candidates so they

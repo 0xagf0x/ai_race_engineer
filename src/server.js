@@ -8,6 +8,12 @@ import { config } from "./config.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, "..", "public");
 
+// A 402 from ElevenLabs is permanent for the process: the account cannot use
+// this voice, and no amount of retrying changes that. Without this the bridge
+// makes a doomed API call before every single line, which costs a round trip
+// of latency on the radio and floods the log.
+let ttsDisabled = false;
+
 const MIME = {
   ".html": "text/html",
   ".js": "text/javascript",
@@ -41,7 +47,9 @@ function readBody(req) {
 // UK voice, which is exactly how the browser probes for availability on load.
 async function handleTts(req, res, log) {
   const { apiKey, voiceId, model } = config.elevenlabs;
-  if (!apiKey || !voiceId) {
+  // 501 is the browser's signal to use the local voice, which is also the
+  // right answer once the account has told us it cannot serve this one.
+  if (!apiKey || !voiceId || ttsDisabled) {
     res.writeHead(501);
     return res.end();
   }
@@ -80,12 +88,18 @@ async function handleTts(req, res, log) {
     );
 
     if (!upstream.ok) {
-      log.error(
-        "[tts] elevenlabs",
-        upstream.status,
-        (await upstream.text()).slice(0, 200),
-      );
-      res.writeHead(502);
+      const body = (await upstream.text()).slice(0, 200);
+      log.error("[tts] elevenlabs", upstream.status, body);
+      // 402 is payment required and 401 is a bad key: both mean every future
+      // request fails the same way, so stop asking and let the browser fall
+      // back to the local voice for the rest of the session.
+      if (upstream.status === 402 || upstream.status === 401) {
+        ttsDisabled = true;
+        log.error(
+          "[tts] disabled for this session. Set ELEVENLABS_VOICE_ID to a voice in My Voices, or a premade one, and restart.",
+        );
+      }
+      res.writeHead(ttsDisabled ? 501 : 502);
       return res.end();
     }
 

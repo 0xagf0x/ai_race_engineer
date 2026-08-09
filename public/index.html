@@ -74,23 +74,9 @@
               </clipPath>
               <rect class="ttrack" x="6" y="6" width="32" height="56" rx="8" />
               <g clip-path="url(#tclip0)">
-                <rect
-                  class="ttread"
-                  x="6"
-                  y="6"
-                  width="32"
-                  height="56"
-                  rx="8"
-                />
+                <rect class="ttread" x="6" y="6" width="32" height="56" rx="8" />
               </g>
-              <rect
-                class="tcarcass"
-                x="6"
-                y="6"
-                width="32"
-                height="56"
-                rx="8"
-              />
+              <rect class="tcarcass" x="6" y="6" width="32" height="56" rx="8" />
             </svg>
             <span class="tt">–</span>
             <span class="tw"></span>
@@ -103,23 +89,9 @@
               </clipPath>
               <rect class="ttrack" x="6" y="6" width="32" height="56" rx="8" />
               <g clip-path="url(#tclip1)">
-                <rect
-                  class="ttread"
-                  x="6"
-                  y="6"
-                  width="32"
-                  height="56"
-                  rx="8"
-                />
+                <rect class="ttread" x="6" y="6" width="32" height="56" rx="8" />
               </g>
-              <rect
-                class="tcarcass"
-                x="6"
-                y="6"
-                width="32"
-                height="56"
-                rx="8"
-              />
+              <rect class="tcarcass" x="6" y="6" width="32" height="56" rx="8" />
             </svg>
             <span class="tt">–</span>
             <span class="tw"></span>
@@ -132,23 +104,9 @@
               </clipPath>
               <rect class="ttrack" x="6" y="6" width="32" height="56" rx="8" />
               <g clip-path="url(#tclip2)">
-                <rect
-                  class="ttread"
-                  x="6"
-                  y="6"
-                  width="32"
-                  height="56"
-                  rx="8"
-                />
+                <rect class="ttread" x="6" y="6" width="32" height="56" rx="8" />
               </g>
-              <rect
-                class="tcarcass"
-                x="6"
-                y="6"
-                width="32"
-                height="56"
-                rx="8"
-              />
+              <rect class="tcarcass" x="6" y="6" width="32" height="56" rx="8" />
             </svg>
             <span class="tt">–</span>
             <span class="tw"></span>
@@ -161,23 +119,9 @@
               </clipPath>
               <rect class="ttrack" x="6" y="6" width="32" height="56" rx="8" />
               <g clip-path="url(#tclip3)">
-                <rect
-                  class="ttread"
-                  x="6"
-                  y="6"
-                  width="32"
-                  height="56"
-                  rx="8"
-                />
+                <rect class="ttread" x="6" y="6" width="32" height="56" rx="8" />
               </g>
-              <rect
-                class="tcarcass"
-                x="6"
-                y="6"
-                width="32"
-                height="56"
-                rx="8"
-              />
+              <rect class="tcarcass" x="6" y="6" width="32" height="56" rx="8" />
             </svg>
             <span class="tt">–</span>
             <span class="tw"></span>
@@ -185,6 +129,7 @@
         </div>
 
         <div class="statrows" id="statRows"></div>
+        <div class="laplist" id="lapList"></div>
       </section>
 
       <!-- TIMING -->
@@ -241,17 +186,24 @@
             </select>
           </label>
           <label class="levelrow">
-            <label class="levelrow">
-              <span>UNITS</span>
-              <select id="units">
-                <option value="kmh">km/h</option>
-                <option value="mph">mph</option>
-              </select>
-            </label>
+            <span>UNITS</span>
+            <select id="units">
+              <option value="kmh">km/h</option>
+              <option value="mph">mph</option>
+            </select>
+          </label>
+          <label class="levelrow">
             <span>WAKE WORD</span>
             <select id="wakeWord">
               <option value="off">Off</option>
               <option value="on">On, say "radio"</option>
+            </select>
+          </label>
+          <label class="levelrow">
+            <span>SLIP BEEP</span>
+            <select id="slipBeep">
+              <option value="off">Off</option>
+              <option value="on">On</option>
             </select>
           </label>
           <button id="pttBtn" class="pttbtn" aria-label="Hold to talk">

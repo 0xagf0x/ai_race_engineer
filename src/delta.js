@@ -146,10 +146,13 @@ export class Delta {
     const i = Math.min(Math.floor(idx), maxIdx - 1);
     const frac = idx - i;
     const refMs = this.ref[i] + (this.ref[i + 1] - this.ref[i]) * frac;
-    // A reference time of 0 is legitimate at the start line, so test for a
-    // number rather than for truthiness.
     if (!Number.isFinite(refMs)) return null;
-    return Math.round(elapsedMs - refMs);
+    const d = Math.round(elapsedMs - refMs);
+    // A delta larger than the reference lap itself is not a delta: the lap
+    // timer has kept running through a pause, a replay, or a session that
+    // ended. Saying nothing beats reporting eighty seconds down.
+    if (this.refLapMs && Math.abs(d) > this.refLapMs) return null;
+    return d;
   }
 
   // Close off a segment every SEGMENT_M and record how much time moved in it.
@@ -180,7 +183,6 @@ export class Delta {
     if (invalid || lap.length < 50) return;
     const lapMs = lap[lap.length - 1].t;
     if (!lapMs || lapMs < 10000) return;
-
     // Only promote a genuinely quicker lap.
     if (this.refLapMs && lapMs >= this.refLapMs) return;
 

@@ -622,6 +622,38 @@ export function parseSessionHistory(buf, h) {
   }
 }
 
+// ---- Packet 13: Motion Ex ----
+// Player car only, so no grid array to solve. 273 bytes in F1 25, which is
+// 244 of payload: four float[4] suspension and wheel speed arrays before the
+// slip data.
+//
+// These offsets are inferred from the packet size rather than confirmed byte
+// by byte, so the result is sanity checked. A slip ratio outside what a tyre
+// can physically do means the layout moved, and returning null is the right
+// answer: a beep on a wrong offset is worse than no beep.
+export function parseMotionEx(buf, h) {
+  const base = headerSize(h.packetFormat);
+  // suspensionPosition, suspensionVelocity, suspensionAcceleration, wheelSpeed
+  const SLIP_RATIO_OFFSET = base + 4 * 4 * 4;
+  if (buf.length < SLIP_RATIO_OFFSET + 16) return null;
+  try {
+    const r = new Reader(buf, SLIP_RATIO_OFFSET);
+    const slipRatio = [r.f32(), r.f32(), r.f32(), r.f32()];
+    // A tyre turning at twice road speed is a huge slide; ten times it is a
+    // misread float.
+    if (!slipRatio.every((v) => Number.isFinite(v) && Math.abs(v) < 10)) {
+      warnOnce(
+        `motionex-${buf.length}`,
+        `motion ex slip ratios out of range, offsets are wrong for this format`,
+      );
+      return null;
+    }
+    return { slipRatio };
+  } catch {
+    return null;
+  }
+}
+
 // ---- Packet 12: Tyre Sets ----
 // One car per packet. The game's own wear and lifespan numbers per set, which
 // is the cheapest good strategy input available.

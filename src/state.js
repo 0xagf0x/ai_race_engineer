@@ -39,6 +39,7 @@ export function createState() {
     history: {}, // per-car lap/sector history from packet 11
     tyreSets: null, // player's available sets from packet 12
     events: [], // rolling log of notable events
+    sessionTime: 0, // header clock, used to unwind a flashback
   };
 }
 
@@ -63,6 +64,11 @@ export function applyF1(state, kind, data, header) {
   state.game = "f1";
   state.format = header.packetFormat;
   state.lastPacketAt = Date.now();
+  // Seconds since the session started, from the packet header. This is the
+  // only clock that survives a flashback: wall time and lap number both move
+  // forward when the game moves backward, so anything that has to be undone
+  // must be stamped with this.
+  state.sessionTime = header.sessionTime;
   const p = header.playerCarIndex;
   const fmt = header.packetFormat;
 
@@ -427,5 +433,6 @@ export function engineerSnapshot(state) {
       penaltiesSec: o.penalties || undefined,
     }));
   }
+  if (state.strategy) s.strategy = state.strategy;
   return s;
 }

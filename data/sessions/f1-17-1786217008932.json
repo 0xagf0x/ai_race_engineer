@@ -1,0 +1,74 @@
+{
+  "trackKey": "f1-17",
+  "track": "Red Bull Ring",
+  "game": "f1",
+  "sessionType": "Race",
+  "mode": "race",
+  "finishedAt": 1786217008932,
+  "durationMin": 23.8,
+  "result": {
+    "startedP": 1,
+    "finishedP": 1,
+    "netPlaces": 0,
+    "totalLaps": 4,
+    "status": "Active"
+  },
+  "pace": {
+    "bestLapMs": 70288,
+    "idealLapMs": 70287,
+    "referenceLapMs": 70275,
+    "spreadMs": 1449,
+    "lapCount": 3
+  },
+  "weakSegments": [
+    {
+      "fromM": 4000,
+      "toM": 4200,
+      "deltaMs": 295,
+      "lostSec": 0.29
+    },
+    {
+      "fromM": 2800,
+      "toM": 3200,
+      "deltaMs": 264,
+      "lostSec": 0.26
+    },
+    {
+      "fromM": 600,
+      "toM": 1000,
+      "deltaMs": 199,
+      "lostSec": 0.2
+    },
+    {
+      "fromM": 2200,
+      "toM": 2400,
+      "deltaMs": 184,
+      "lostSec": 0.18
+    }
+  ],
+  "tyres": {
+    "compound": "Medium",
+    "actual": "C4",
+    "ageLaps": 3,
+    "worstWearPct": 16
+  },
+  "incidents": [
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with RUSSELL"
+    },
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with RUSSELL"
+    },
+    {
+      "kind": "incident",
+      "lap": 4,
+      "text": "contact with LECLERC"
+    }
+  ],
+  "penalties": [],
+  "pitLossSec": null
+}

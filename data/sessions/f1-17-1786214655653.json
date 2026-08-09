@@ -1,0 +1,82 @@
+{
+  "trackKey": "f1-17",
+  "track": "Red Bull Ring",
+  "game": "f1",
+  "sessionType": "Race",
+  "mode": "race",
+  "finishedAt": 1786214655653,
+  "durationMin": 20.2,
+  "result": {
+    "startedP": 1,
+    "finishedP": 22,
+    "netPlaces": -21,
+    "totalLaps": 3,
+    "status": "Active"
+  },
+  "pace": {
+    "bestLapMs": 82977,
+    "idealLapMs": 82265,
+    "referenceLapMs": 72579,
+    "spreadMs": null,
+    "lapCount": 2
+  },
+  "weakSegments": [
+    {
+      "fromM": 2000,
+      "toM": 3800,
+      "deltaMs": 6934,
+      "lostSec": 6.93
+    },
+    {
+      "fromM": 200,
+      "toM": 800,
+      "deltaMs": 3163,
+      "lostSec": 3.16
+    },
+    {
+      "fromM": 1200,
+      "toM": 1400,
+      "deltaMs": 92,
+      "lostSec": 0.09
+    }
+  ],
+  "tyres": {
+    "compound": "Hard",
+    "actual": "C3",
+    "ageLaps": 0,
+    "worstWearPct": 0
+  },
+  "incidents": [
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with LECLERC"
+    },
+    {
+      "kind": "penalty",
+      "lap": 2,
+      "text": "picked up a warning for a small collision"
+    },
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with BEARMAN"
+    },
+    {
+      "kind": "penalty",
+      "lap": 2,
+      "text": "picked up a warning for a small collision"
+    },
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with BEARMAN"
+    }
+  ],
+  "penalties": [
+    "a stop go for a big collision",
+    "a warning for a small collision",
+    "a warning for a small collision"
+  ],
+  "pitLossSec": null
+}

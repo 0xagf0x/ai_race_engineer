@@ -12,6 +12,7 @@ import { describePenalty } from "./f1/penalties.js";
 import { TrackModel } from "./gt7/track-model.js";
 import { Delta } from "./delta.js";
 import { SessionStore } from "./sessions.js";
+import { Strategy } from "./strategy.js";
 
 const log = {
   info: (...a) => console.log("[bridge]", ...a),
@@ -28,6 +29,7 @@ const coach = new Coach();
 const track = new TrackModel();
 const delta = new Delta();
 const sessions = new SessionStore();
+const strategy = new Strategy();
 
 let pttDown = false;
 
@@ -42,7 +44,7 @@ const say = (text) =>
 // one. Order is the whole point: building the record reads the arc, so saving
 // has to happen before the reset or every record comes out empty.
 function endSession(reason) {
-  const record = sessions.build(state, arc, delta);
+  const record = sessions.build(state, arc, delta, strategy);
   const saved = sessions.save(record);
   if (saved) {
     log.info(`Session recorded (${reason})`);
@@ -50,6 +52,7 @@ function endSession(reason) {
     // because it reads the record rather than the conversation.
     engineer.debrief(record, state.priors).then(say);
   }
+  strategy.reset();
   arc.reset();
   engineer.reset();
   sessions.begin();
@@ -63,6 +66,7 @@ function loadPriors(trackKey, label) {
   state._priorsKey = trackKey;
   state.trackKey = trackKey;
   state.priors = sessions.priors(trackKey);
+  strategy.loadPriors(state.priors);
   if (!state.priors) return;
   log.info(
     `Priors: ${state.priors.sessionsHere} previous sessions at ${label}`,
@@ -136,7 +140,11 @@ f1sock.on("message", (buf) => {
     }
     case F1.PacketId.LAP_DATA: {
       const d = F1.parseLapData(buf, header);
-      if (d) applyF1(state, "lap", d, header);
+      if (d) {
+        applyF1(state, "lap", d, header);
+        strategy.onLapComplete(state);
+        state.strategy = strategy.brief(state);
+      }
       break;
     }
     case F1.PacketId.PARTICIPANTS: {
@@ -240,6 +248,19 @@ function handleF1Event(ev) {
       pttDown = pressed;
       server.broadcast({ type: "ptt", pressed, source: "controller" });
     }
+    return;
+  }
+
+  // Flashback: the game has moved the session clock backwards, so everything
+  // recorded after that point describes a race that did not happen. Every
+  // stateful component unwinds to the same instant.
+  if (ev.code === "FLBK" && Number.isFinite(ev.sessionTime)) {
+    strategy.rewindTo(ev.sessionTime);
+    arc.rewindTo(ev.sessionTime);
+    delta.rewind();
+    coach.rewind();
+    callouts.rewind();
+    log.info(`Flashback to ${ev.sessionTime.toFixed(1)}s, state unwound`);
     return;
   }
 

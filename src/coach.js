@@ -98,6 +98,18 @@ export class Coach {
     }
   }
 
+  /**
+   * Drop the lap in progress. Samples either side of a flashback describe two
+   * different runs through the same stretch of track, and a braking event that
+   * spans the jump grades as a hundred metres early.
+   */
+  rewind() {
+    this.samples = [];
+    this._braking = false;
+    this._matched = null;
+    this.feedback = null;
+  }
+
   // Called at telemetry rate. dist = lap distance in meters.
   sample({ dist, speed, brake, gear, lapNum, lapMsAtSample, invalid }) {
     if (this.trackKey == null || dist == null || dist < 0) return;

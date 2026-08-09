@@ -50,7 +50,7 @@ export class SessionStore {
    * @param {import("./racearc.js").RaceArc} arc
    * @param {import("./delta.js").Delta} delta
    */
-  build(state, arc, delta) {
+  build(state, arc, delta, strategy) {
     const s = state.session ?? {};
     const lap = state.player?.lap ?? {};
     const st = state.player?.status ?? {};
@@ -102,6 +102,7 @@ export class SessionStore {
 
       penalties: arc.penalties.map((p) => p.text),
       pitLossSec: s.measuredPitLossSec ?? null,
+      stints: strategy?.export() ?? [],
     };
   }
 
@@ -218,6 +219,7 @@ export class SessionStore {
       typicalPitLossSec: median(past.map((p) => p.pitLossSec).filter(Boolean)),
       runningWideOften: wideCount >= 3 ? wideCount : null,
       penaltiesHere: past.flatMap((p) => p.penalties ?? []).slice(-4),
+      stints: past.flatMap((p) => p.stints ?? []),
     };
   }
 }

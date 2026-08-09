@@ -41,6 +41,21 @@ export class Delta {
     return this.ref != null;
   }
 
+  /**
+   * A flashback invalidates the lap in progress: the sample array has distance
+   * running forward, then jumping back, which makes the reference curve
+   * non-monotonic and the segment attribution meaningless. The completed laps
+   * behind it are untouched.
+   */
+  rewind() {
+    this.current = [];
+    this.lastDistance = 0;
+    this.segments = [];
+    this._segIndex = 0;
+    this._segStartDelta = 0;
+    this.value = null;
+  }
+
   setTrack(key, trackLengthM) {
     if (key === this.key) {
       if (trackLengthM) this.trackLengthM = trackLengthM;

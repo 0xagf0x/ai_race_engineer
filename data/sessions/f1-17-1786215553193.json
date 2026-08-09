@@ -1,0 +1,64 @@
+{
+  "trackKey": "f1-17",
+  "track": "Red Bull Ring",
+  "game": "f1",
+  "sessionType": "Race",
+  "mode": "race",
+  "finishedAt": 1786215553193,
+  "durationMin": 14.5,
+  "result": {
+    "startedP": 1,
+    "finishedP": 1,
+    "netPlaces": 0,
+    "totalLaps": 4,
+    "status": "Active"
+  },
+  "pace": {
+    "bestLapMs": 70353,
+    "idealLapMs": 69757,
+    "referenceLapMs": 70296,
+    "spreadMs": 1993,
+    "lapCount": 3
+  },
+  "weakSegments": [
+    {
+      "fromM": 2800,
+      "toM": 3800,
+      "deltaMs": 822,
+      "lostSec": 0.82
+    },
+    {
+      "fromM": 1400,
+      "toM": 1600,
+      "deltaMs": 339,
+      "lostSec": 0.34
+    },
+    {
+      "fromM": 4000,
+      "toM": 4200,
+      "deltaMs": 313,
+      "lostSec": 0.31
+    },
+    {
+      "fromM": 1800,
+      "toM": 2200,
+      "deltaMs": 126,
+      "lostSec": 0.13
+    }
+  ],
+  "tyres": {
+    "compound": "Medium",
+    "actual": "C4",
+    "ageLaps": 3,
+    "worstWearPct": 13
+  },
+  "incidents": [
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with LECLERC"
+    }
+  ],
+  "penalties": [],
+  "pitLossSec": 21.7
+}

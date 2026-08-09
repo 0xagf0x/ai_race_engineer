@@ -347,6 +347,14 @@ function render() {
       : "GT7 LIVE"
     : "OFFLINE";
 
+  // The bridge owns the level, so mirror it here rather than trusting the
+  // markup default. Skipped while the select has focus so a live broadcast
+  // cannot reset the dropdown mid-choice.
+  const lvl = $("feedbackLevel");
+  if (lvl && state.feedbackLevel && document.activeElement !== lvl) {
+    lvl.value = state.feedbackLevel;
+  }
+
   const s = state.session || {};
   const bits = [
     s.track,

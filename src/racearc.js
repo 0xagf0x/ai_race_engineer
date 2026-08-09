@@ -37,13 +37,14 @@ export class RaceArc {
       text,
       lap: this.currentLap ?? null,
       ts: Date.now(),
+      at: this._sessionTime ?? 0,
       ...extra,
     });
     if (this.log.length > LOG_MAX) this.log.shift();
   }
 
   notePenalty(described) {
-    this.penalties.push(described);
+    this.penalties.push({ ...described, at: this._sessionTime ?? 0 });
     this.note("penalty", `picked up ${described.text}`, {
       blameless: described.blameless,
     });
@@ -54,6 +55,7 @@ export class RaceArc {
     const lap = state.player?.lap;
     if (!lap?.currentLapNum) return;
     this.currentLap = lap.currentLapNum;
+    this._sessionTime = state.sessionTime ?? 0;
 
     if (this.startPosition == null && lap.gridPosition > 0) {
       this.startPosition = lap.gridPosition;
@@ -217,6 +219,32 @@ export class RaceArc {
         .slice(-8)
         .map((e) => (e.lap ? `lap ${e.lap}: ${e.text}` : e.text)),
     };
+  }
+
+  /**
+   * Undo a flashback. The contact that was rewound away did not happen, and an
+   * engineer who keeps bringing it up is describing a race the driver did not
+   * drive.
+   */
+  rewindTo(sessionTime) {
+    this.log = this.log.filter((e) => (e.at ?? 0) <= sessionTime);
+    this.penalties = this.penalties.filter((p) => (p.at ?? 0) <= sessionTime);
+
+    // Lap times and positions are not stamped individually, so they are cut by
+    // the lap the rewind landed on rather than by time.
+    if (this.currentLap != null) {
+      this.lapTimes = this.lapTimes.filter((l) => l.lap < this.currentLap);
+      this.positions = this.positions.filter((p) => p.lap < this.currentLap);
+    }
+
+    // The best lap has to be recomputed: it may have been set on a lap that no
+    // longer exists.
+    this.bestLapMs = this.lapTimes.reduce(
+      (best, l) => (l.ms > 0 && (!best || l.ms < best) ? l.ms : best),
+      0,
+    );
+    this.lastLapSeen = -1;
+    this.lastPosition = null;
   }
 }
 

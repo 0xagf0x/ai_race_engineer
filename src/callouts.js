@@ -15,9 +15,9 @@
 // Priorities: 1 chatter, 2 useful, 3 important, 4 urgent.
 
 export const LEVELS = {
-  low: { minGapMs: 45000, minPriority: 3, label: "Low, key moments only" },
-  medium: { minGapMs: 18000, minPriority: 2, label: "Medium, regular updates" },
-  high: { minGapMs: 7000, minPriority: 1, label: "High, constant coaching" },
+  low: { minGapMs: 75000, minPriority: 3, label: "Low, key moments only" },
+  medium: { minGapMs: 35000, minPriority: 2, label: "Medium, regular updates" },
+  high: { minGapMs: 12000, minPriority: 1, label: "High, constant coaching" },
 };
 
 // Urgent calls that go out instantly as canned lines rather than waiting on a
@@ -35,12 +35,34 @@ const INSTANT = {
 const EVENT_TTL_MS = 12000;
 const MAX_PENDING = 12;
 
+// A fact that has sat in the queue through a model round trip and a quiet gap
+// is no longer worth speaking. Three seconds at racing speed is two hundred
+// metres, which is the difference between "he's four tenths back" and a lie.
+const FACT_TTL_MS = 3000;
+
+// Temperature bands. Rules fire on a crossing, not while sitting inside one,
+// so a tyre parked at 108 degrees produces one call rather than one per
+// cooldown for as long as it stays there.
+const TYRE_BANDS = [
+  { max: 65, name: "cold" },
+  { max: 105, name: "working" },
+  { max: 115, name: "warm" },
+  { max: Infinity, name: "overheating" },
+];
+const bandOf = (t) => TYRE_BANDS.find((b) => t <= b.max).name;
+
 export const freshMemory = () => ({
   lastLapSeen: -1,
   bestLapMs: 0,
   lastPosition: -1,
   lastCornerTs: 0,
   lastSafetyCar: "none",
+  saidGapAhead: null,
+  saidGapBehind: null,
+  saidTyreBand: null,
+  saidWearPct: null,
+  saidErsPct: null,
+  saidSpread: null,
 });
 
 const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
@@ -134,7 +156,7 @@ export function evaluate(state, mem) {
     out.push({
       id: "next_corner",
       priority: 1,
-      cooldownMs: 5000,
+      cooldownMs: 4000,
       fact: `braking zone in ${c.brakeInM} metres, reference is gear ${c.gear} and ${c.minSpeedKph} kph minimum`,
     });
   }
@@ -192,51 +214,88 @@ export function evaluate(state, mem) {
     const hottest = Math.max(...temps);
     const coldest = Math.min(...temps);
     const where = WHEELS[temps.indexOf(hottest)];
-    if (hottest > 115) {
-      out.push({
-        id: "tyre_hot",
-        priority: 3,
-        cooldownMs: 40000,
-        fact: `${where} tyre at ${Math.round(hottest)} degrees, overheating`,
-      });
-    } else if (hottest > 105) {
-      out.push({
-        id: "tyre_warm",
-        priority: 2,
-        cooldownMs: 60000,
-        fact: `${where} running warm at ${Math.round(hottest)} degrees`,
-      });
-    } else if (coldest < 65 && avg(temps) < 75) {
-      out.push({
-        id: "tyre_cold",
-        priority: 2,
-        cooldownMs: 60000,
-        fact: `tyres still cold, averaging ${Math.round(avg(temps))} degrees`,
-      });
+    const band = bandOf(hottest);
+
+    // Temporary: confirms whether the cold-tyre rule is genuinely firing on hot
+    // tyres late in a race, or whether those calls came from early laps and the
+    // log was simply long. Remove once answered.
+    if (band !== mem.saidTyreBand) {
+      console.log(
+        `[callouts] tyre band ${mem.saidTyreBand} -> ${band}, temps ${temps.join("/")}, lap ${lap.currentLapNum}`,
+      );
     }
-    if (hottest - coldest > 25) {
+
+    // Only on a crossing. Sitting at a hundred and eight degrees is one call,
+    // not one every cooldown for as long as it lasts.
+    if (band !== mem.saidTyreBand) {
+      mem.saidTyreBand = band;
+      if (band === "overheating") {
+        out.push({
+          id: "tyre_temp",
+          priority: 3,
+          cooldownMs: 30000,
+          fact: `${where} tyre at ${Math.round(hottest)} degrees, overheating`,
+        });
+      } else if (band === "warm") {
+        out.push({
+          id: "tyre_temp",
+          priority: 2,
+          cooldownMs: 30000,
+          fact: `${where} running warm at ${Math.round(hottest)} degrees`,
+        });
+      } else if (band === "cold" && avg(temps) < 75) {
+        out.push({
+          id: "tyre_temp",
+          priority: 2,
+          cooldownMs: 30000,
+          fact: `tyres still cold, averaging ${Math.round(avg(temps))} degrees`,
+        });
+      } else if (band === "working") {
+        // Crossing into the working window is worth knowing after a cold start,
+        // and it is the call that stops the cold warnings sounding unresolved.
+        out.push({
+          id: "tyre_temp",
+          priority: 1,
+          cooldownMs: 30000,
+          fact: `tyres are in the window now, ${Math.round(avg(temps))} degrees average`,
+        });
+      }
+    }
+
+    const spread = Math.round(hottest - coldest);
+    if (
+      spread > 25 &&
+      (mem.saidSpread == null || Math.abs(spread - mem.saidSpread) >= 8)
+    ) {
+      mem.saidSpread = spread;
       out.push({
         id: "tyre_balance",
         priority: 2,
-        cooldownMs: 90000,
-        fact: `${Math.round(hottest - coldest)} degree spread across the tyres, hottest is the ${where}`,
+        cooldownMs: 120000,
+        fact: `${spread} degree spread across the tyres, hottest is the ${where}`,
       });
     }
   }
+
   const wear = p.damage?.tyreWear;
   if (wear?.length) {
     const worst = Math.max(...wear);
-    if (worst > 60) {
+    // Every ten points of wear, not every ninety seconds.
+    if (
+      worst > 60 &&
+      (mem.saidWearPct == null || worst - mem.saidWearPct >= 10)
+    ) {
+      mem.saidWearPct = worst;
       out.push({
         id: "tyre_wear",
         priority: 3,
-        cooldownMs: 90000,
+        cooldownMs: 60000,
         fact: `tyre wear up to ${Math.round(worst)} percent on the ${WHEELS[wear.indexOf(worst)]} after ${st.tyreAgeLaps ?? "?"} laps on the ${st.tyre ?? "current set"}`,
       });
     }
   }
 
-  out.push(...gapRules(state));
+  out.push(...gapRules(state, mem));
 
   // --- car condition ---
   const d = p.damage;
@@ -254,12 +313,20 @@ export function evaluate(state, mem) {
         fact: `damage: ${parts.join(", ")}`,
       });
   }
-  if (st.ersStorePct != null && st.ersStorePct < 15) {
+  // Deploy mode is deliberately not in this fact. F1 25 reports mode 0 (None)
+  // at racing speed, which we cannot yet explain, so quoting it would have the
+  // engineer describing a car state that is probably not real.
+  if (
+    st.ersStorePct != null &&
+    st.ersStorePct < 8 &&
+    (mem.saidErsPct == null || Math.abs(st.ersStorePct - mem.saidErsPct) >= 3)
+  ) {
+    mem.saidErsPct = st.ersStorePct;
     out.push({
       id: "ers_low",
       priority: 2,
-      cooldownMs: 45000,
-      fact: `energy store down to ${st.ersStorePct} percent in ${st.ersDeployMode || "current"} mode`,
+      cooldownMs: 90000,
+      fact: `energy store down to ${st.ersStorePct} percent`,
     });
   }
   if (p.engineTemp > 120) {
@@ -326,13 +393,20 @@ export function evaluate(state, mem) {
     }
   }
 
-  return out;
+  // Stamped so tick() can discard anything that waited too long to be worth
+  // saying. The rules are cheap and run at 10Hz; the model round trip is not.
+  const at = Date.now();
+  return out.map((c) => ({ ...c, at }));
 }
 
 // Gaps come from the delta-to-car-in-front chain, which is what the F1 feed
-// actually sends. My gap to the car ahead is my own deltaAheadMs; the gap to the
-// car behind is that car's deltaAheadMs.
-function gapRules(state) {
+// actually sends. My gap to the car ahead is my own deltaAheadMs; the gap to
+// the car behind is that car's deltaAheadMs.
+//
+// Gated on change rather than time. A gap that holds steady at four tenths is
+// true for a minute, and under a pure cooldown it re-fired every time with
+// fresh wording, which is how one battle produced eight near-identical calls.
+function gapRules(state, mem) {
   const out = [];
   const me = state.opponents?.find((o) => o.isPlayer);
   if (!me) return out;
@@ -340,35 +414,58 @@ function gapRules(state) {
   const ahead = state.opponents.find((o) => o.position === me.position - 1);
   const behind = state.opponents.find((o) => o.position === me.position + 1);
 
+  // Worth another sentence if it moved three tenths, or crossed into or out of
+  // DRS range, which changes what he should actually do.
+  //
+  // The DRS comparison is on named booleans rather than inline. Written
+  // inline, !== binds tighter than < and the expression parses as
+  // now < (1 !== said) < 1, which is always false, and the formatter strips
+  // the parentheses that would fix it.
+  const moved = (now, said) => {
+    if (said == null) return true;
+    if (Math.abs(now - said) >= 0.3) return true;
+    const inDrsNow = now < 1;
+    const inDrsSaid = said < 1;
+    return inDrsNow !== inDrsSaid;
+  };
+
   if (ahead && me.deltaAheadMs > 0) {
     const gap = me.deltaAheadMs / 1000;
-    if (gap < 1) {
-      out.push({
-        id: "drs_range",
-        priority: 3,
-        cooldownMs: 15000,
-        fact: `${ahead.name} is ${gap.toFixed(1)} ahead, inside DRS range`,
-      });
-    } else if (gap < 3) {
+    if (gap < 3 && moved(gap, mem.saidGapAhead)) {
+      mem.saidGapAhead = gap;
       out.push({
         id: "gap_ahead",
-        priority: 2,
-        cooldownMs: 25000,
-        fact: `closing on ${ahead.name}, ${gap.toFixed(1)} ahead`,
+        priority: gap < 1 ? 3 : 2,
+        cooldownMs: 12000,
+        fact:
+          gap < 1
+            ? `${ahead.name} is ${gap.toFixed(1)} ahead, inside DRS range`
+            : `closing on ${ahead.name}, ${gap.toFixed(1)} ahead`,
       });
+    } else if (gap >= 3) {
+      mem.saidGapAhead = null;
     }
+  } else {
+    mem.saidGapAhead = null;
   }
+
   if (behind?.deltaAheadMs > 0) {
     const gap = behind.deltaAheadMs / 1000;
-    if (gap < 1.2) {
+    if (gap < 1.2 && moved(gap, mem.saidGapBehind)) {
+      mem.saidGapBehind = gap;
       out.push({
         id: "under_pressure",
         priority: 3,
-        cooldownMs: 15000,
+        cooldownMs: 12000,
         fact: `${behind.name} is ${gap.toFixed(1)} behind and in range`,
       });
+    } else if (gap >= 1.2) {
+      mem.saidGapBehind = null;
     }
+  } else {
+    mem.saidGapBehind = null;
   }
+
   const pitting = state.opponents.filter((o) => !o.isPlayer && o.pit);
   if (pitting.length) {
     out.push({
@@ -474,6 +571,17 @@ export class Callouts {
     if (this.pendingEvents.length > MAX_PENDING) this.pendingEvents.shift();
   }
 
+  /**
+   * After a flashback the rolling memory describes a race that no longer
+   * happened: a gap that has since changed, a position that was regained, a
+   * best lap that was never set. Clearing the gates costs one repeated call
+   * and avoids a run of calls about events that were undone.
+   */
+  rewind() {
+    this.mem = freshMemory();
+    this.pendingEvents = [];
+  }
+
   async tick() {
     const now = Date.now();
 
@@ -498,11 +606,10 @@ export class Callouts {
     const cfg = LEVELS[this.level];
     if (now - this.lastCalloutAt < cfg.minGapMs) return;
 
-    const chosen = pick(
-      [...observed, ...this.pendingEvents],
-      this.level,
-      this.lastFired,
+    const fresh = [...observed, ...this.pendingEvents].filter(
+      (c) => now - (c.at ?? now) < FACT_TTL_MS,
     );
+    const chosen = pick(fresh, this.level, this.lastFired);
     if (!chosen) return;
 
     // Only the one we are about to say leaves the queue.

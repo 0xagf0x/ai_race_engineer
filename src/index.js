@@ -93,6 +93,9 @@ const server = startServer(
         callouts.setLevel(msg.level);
         log.info(`Feedback level: ${callouts.level}`);
         break;
+      case "speaking":
+        callouts.setSpeaking(!!msg.speaking);
+        break;
       case "ptt":
         server.broadcast({ type: "ptt", pressed: !!msg.pressed, source: "ui" });
         break;
@@ -264,12 +267,11 @@ function handleF1Event(ev) {
     return;
   }
 
-  // Only our own penalties and incidents go into the arc; everyone else's are
-  // timing tower noise.
   const me = state.opponents?.find((o) => o.isPlayer);
-  if (ev.code === "PENA" && ev.vehicleIdx === me?.idx) {
-    arc.notePenalty(describePenalty(ev));
-  }
+  // The grid's penalties are timing tower noise. Only ours reach the arc or
+  // the radio, and PENA fires for every car.
+  const minePena = ev.code === "PENA" && ev.vehicleIdx === me?.idx;
+  if (minePena) arc.notePenalty(describePenalty(ev));
   if (
     ev.code === "COLL" &&
     (ev.vehicle1Idx === me?.idx || ev.vehicle2Idx === me?.idx)
@@ -283,7 +285,11 @@ function handleF1Event(ev) {
     );
   }
 
-  callouts.onEvent(ev, (idx) => state._participants?.drivers?.[idx]?.name);
+  callouts.onEvent(
+    ev,
+    (idx) => state._participants?.drivers?.[idx]?.name,
+    (e) => (minePena ? describePenalty(e) : null),
+  );
 
   // The flag is the natural end of a session; final classification follows as
   // a backstop a moment later.

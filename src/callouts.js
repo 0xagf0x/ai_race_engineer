@@ -63,6 +63,10 @@ export const freshMemory = () => ({
   saidWearPct: null,
   saidErsPct: null,
   saidSpread: null,
+  saidUndercut: null,
+  saidStintWindow: null,
+  saidFuelTarget: null,
+  saidPenaltySec: 0,
 });
 
 const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
@@ -337,13 +341,21 @@ export function evaluate(state, mem) {
       fact: `engine temperature ${p.engineTemp} degrees`,
     });
   }
-  if (lap.penalties > 0) {
+  // Only when the total moves. Outstanding seconds are true for as long as they
+  // are unserved, so under a cooldown alone this repeats a fact the driver
+  // already acted on, and it can contradict penalty_event, which describes the
+  // individual penalty rather than the running total.
+  if (lap.penalties > 0 && lap.penalties !== mem.saidPenaltySec) {
+    mem.saidPenaltySec = lap.penalties;
     out.push({
       id: "penalty",
       priority: 4,
       cooldownMs: 60000,
       fact: `${lap.penalties} seconds of penalties outstanding`,
     });
+  } else if (lap.penalties === 0) {
+    // Served or cleared: reset so a later penalty is announced again.
+    mem.saidPenaltySec = 0;
   }
   if (lap.warnings >= 3) {
     out.push({
@@ -380,15 +392,86 @@ export function evaluate(state, mem) {
     });
   }
 
-  // --- stint window ---
-  if (s.totalLaps && lap.currentLapNum && st.tyreAgeLaps != null) {
-    const remaining = s.totalLaps - lap.currentLapNum;
-    if (remaining > 2 && st.tyreAgeLaps > 12) {
+  // --- strategy ---
+  // Everything here comes from the computed model rather than a threshold on a
+  // raw number. The engine already refuses to produce figures it does not
+  // trust, so a null block means genuinely nothing to say, not a quiet failure.
+  const strat = state.strategy;
+  if (strat && strat.available !== false) {
+    // Deg-based stint window. This replaces the old "tyres past 55 percent"
+    // rule: what matters is how much lap time the set is costing now, not how
+    // worn it looks.
+    const deg = strat.degradation;
+    if (deg?.source === "measured" && strat.tyreAgeLaps > 0) {
+      const costNow = +(deg.secPerLap * strat.tyreAgeLaps).toFixed(1);
+      if (
+        costNow >= 0.5 &&
+        (mem.saidStintWindow == null || costNow - mem.saidStintWindow >= 0.3)
+      ) {
+        mem.saidStintWindow = costNow;
+        out.push({
+          id: "stint_window",
+          priority: 3,
+          cooldownMs: 90000,
+          fact:
+            `this set is costing about ${costNow} seconds a lap against fresh rubber ` +
+            `after ${strat.tyreAgeLaps} laps, ${deg.explanation}` +
+            (strat.pitLoss
+              ? `, and a stop here costs ${strat.pitLoss.sec} seconds, ${strat.pitLoss.basis}`
+              : ""),
+        });
+      }
+    }
+
+    // An undercut only gets voiced when the engine is willing to advise on it,
+    // which needs a measured pit loss and a confident deg slope. Below that bar
+    // the numbers still exist for the driver to ask about, but the engineer
+    // does not raise them.
+    const uc = strat.undercutOnCarAhead;
+    if (uc?.advise && uc.netAfterTwoLapsSec >= uc.pitLossSec * 0.15) {
+      if (mem.saidUndercut !== uc.rival) {
+        mem.saidUndercut = uc.rival;
+        out.push({
+          id: "undercut",
+          priority: 3,
+          cooldownMs: 120000,
+          fact:
+            `undercut is on ${uc.rival}: he is ${uc.theirTyreAge} laps on his set against your ${uc.yourTyreAge}, ` +
+            `fresh tyres are worth about ${uc.gainPerLapSec} seconds a lap against him, ` +
+            `so boxing now nets roughly ${uc.netAfterTwoLapsSec} seconds if he stays out two more laps. ` +
+            `Pit loss ${uc.pitLossSec} seconds, ${uc.pitLossSource}`,
+        });
+      }
+    } else if (!uc) {
+      mem.saidUndercut = null;
+    }
+
+    // The threat version of the same maths.
+    const threat = strat.threatFromCarBehind;
+    if (threat?.advise && threat.netAfterTwoLapsSec >= 2) {
       out.push({
-        id: "stint_window",
-        priority: 2,
+        id: "undercut_threat",
+        priority: 3,
         cooldownMs: 120000,
-        fact: `${st.tyreAgeLaps} laps on this set with ${remaining} to go${s.pitLossSec ? `, a stop here costs about ${s.pitLossSec} seconds` : ""}`,
+        fact:
+          `${threat.rival} behind is ${threat.theirTyreAge} laps on his set and can undercut us, ` +
+          `worth about ${threat.netAfterTwoLapsSec} seconds if he boxes and we do not`,
+      });
+    }
+
+    // Fuel target, which is the number he can act on rather than the shortfall.
+    const f = strat.fuel;
+    if (
+      f?.saveKgPerLap > 0 &&
+      (mem.saidFuelTarget == null ||
+        Math.abs(f.saveKgPerLap - mem.saidFuelTarget) >= 0.03)
+    ) {
+      mem.saidFuelTarget = f.saveKgPerLap;
+      out.push({
+        id: "fuel_target",
+        priority: 4,
+        cooldownMs: 60000,
+        fact: `${f.shortfallLaps.toFixed(1)} laps short with ${f.lapsRemaining} to go, needs ${f.saveKgPerLap} kilos a lap saved`,
       });
     }
   }
@@ -512,6 +595,7 @@ export class Callouts {
     this.recentLines = [];
     this.pendingEvents = [];
     this.busy = false;
+    this.speaking = false;
   }
 
   setLevel(level) {
@@ -520,7 +604,7 @@ export class Callouts {
 
   // Race events arrive out of band; queue them as one-shot candidates so they
   // go through the same priority and cooldown gate as everything else.
-  onEvent(ev, resolveName) {
+  onEvent(ev, resolveName, describe) {
     switch (ev.code) {
       case "FTLP":
         this._queue({
@@ -542,14 +626,26 @@ export class Callouts {
         }
         break;
       }
-      case "PENA":
+      case "PENA": {
+        // The event carries penaltyType and infringementType, and penalties.js
+        // turns them into English. Ignoring both produced "a penalty has been
+        // flagged", which was vague enough that the engineer invented a
+        // five-second penalty and a pit stop to serve it after a warning.
+        const described = describe?.(ev);
+        if (!described) break;
         this._queue({
           id: "penalty_event",
-          priority: 4,
+          priority: described.serious ? 4 : 2,
           cooldownMs: 0,
-          fact: "a penalty has been flagged",
+          // describePenalty folds the reason into text already. The "no action
+          // needed" suffix is load bearing: without it the model reasoned its
+          // way from "a warning" to "five second penalty, box to serve it".
+          fact: described.serious
+            ? described.text
+            : `${described.text}, no action needed`,
         });
         break;
+      }
       case "CHQF":
         this.speak(INSTANT.chequered);
         break;
@@ -582,6 +678,25 @@ export class Callouts {
     this.pendingEvents = [];
   }
 
+  /**
+   * The browser reports when audio actually starts and stops. Model latency is
+   * not speech duration: a two second response can take ten seconds to say, and
+   * without this the next callout interrupts it.
+   */
+  setSpeaking(on) {
+    clearTimeout(this._speakTimer);
+    this.speaking = on;
+    if (on) {
+      // A tab that closes mid-sentence never sends the end marker, and the
+      // engineer would go silent for the rest of the session.
+      this._speakTimer = setTimeout(() => {
+        this.speaking = false;
+      }, 30000);
+    } else {
+      this.lastCalloutAt = Date.now();
+    }
+  }
+
   async tick() {
     const now = Date.now();
 
@@ -600,7 +715,7 @@ export class Callouts {
       );
     }
 
-    if (this.level === "off" || this.busy) return;
+    if (this.level === "off" || this.busy || this.speaking) return;
     if (this.engineer.busy) return; // never talk over an answer to the driver
 
     const cfg = LEVELS[this.level];

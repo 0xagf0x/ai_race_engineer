@@ -1,0 +1,115 @@
+{
+  "trackKey": "f1-17",
+  "track": "Red Bull Ring",
+  "game": "f1",
+  "sessionType": "Race",
+  "mode": "race",
+  "finishedAt": 1786294374692,
+  "durationMin": 6.9,
+  "result": {
+    "startedP": 5,
+    "finishedP": 7,
+    "netPlaces": -2,
+    "totalLaps": 5,
+    "status": "Active"
+  },
+  "pace": {
+    "bestLapMs": 70285,
+    "idealLapMs": 69316,
+    "referenceLapMs": 69000,
+    "spreadMs": 1300,
+    "lapCount": 4
+  },
+  "weakSegments": [
+    {
+      "fromM": 2600,
+      "toM": 4000,
+      "deltaMs": 1876,
+      "lostSec": 1.88
+    },
+    {
+      "fromM": 0,
+      "toM": 600,
+      "deltaMs": 1030,
+      "lostSec": 1.03
+    },
+    {
+      "fromM": 1400,
+      "toM": 2200,
+      "deltaMs": 615,
+      "lostSec": 0.61
+    }
+  ],
+  "tyres": {
+    "compound": "Soft",
+    "actual": "C5",
+    "ageLaps": 4,
+    "worstWearPct": 20
+  },
+  "incidents": [
+    {
+      "kind": "incident",
+      "lap": 3,
+      "text": "contact with HADJAR"
+    },
+    {
+      "kind": "incident",
+      "lap": 3,
+      "text": "contact with HADJAR"
+    },
+    {
+      "kind": "incident",
+      "lap": 3,
+      "text": "contact with HADJAR"
+    },
+    {
+      "kind": "incident",
+      "lap": 4,
+      "text": "contact with NORRIS"
+    },
+    {
+      "kind": "incident",
+      "lap": 4,
+      "text": "contact with NORRIS"
+    },
+    {
+      "kind": "incident",
+      "lap": 4,
+      "text": "contact with NORRIS"
+    },
+    {
+      "kind": "incident",
+      "lap": 5,
+      "text": "contact with HADJAR"
+    }
+  ],
+  "penalties": [
+    "a warning for a small collision",
+    "a warning for a small collision"
+  ],
+  "pitLossSec": null,
+  "stints": [
+    {
+      "compound": "C3",
+      "startLap": 1,
+      "endLap": 5,
+      "laps": [
+        {
+          "age": 1,
+          "ms": 70285,
+          "at": 143.3694610595703
+        },
+        {
+          "age": 2,
+          "ms": 70420,
+          "at": 213.7723846435547
+        },
+        {
+          "age": 3,
+          "ms": 71879,
+          "at": 285.66021728515625
+        }
+      ]
+    }
+  ]
+}

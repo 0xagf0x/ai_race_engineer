@@ -222,6 +222,15 @@ function cancelSpeech() {
 async function speak(text) {
   cancelSpeech();
   squelch(true);
+  send({ type: "speaking", speaking: true });
+
+  const done = () => {
+    squelch(false);
+    // The bridge cannot know how long a line takes to say, only how long the
+    // model took to write it. Without this the next callout fires while the
+    // driver is still hearing the last one, and cancelSpeech cuts it off.
+    send({ type: "speaking", speaking: false });
+  };
 
   if (serverTts) {
     try {
@@ -237,7 +246,7 @@ async function speak(text) {
         audio.onended = () => {
           URL.revokeObjectURL(url);
           currentAudio = null;
-          squelch(false);
+          done();
         };
         await audio.play();
         return;
@@ -252,7 +261,7 @@ async function speak(text) {
   u.lang = "en-GB";
   u.rate = 1.05;
   u.pitch = 0.95;
-  u.onend = () => squelch(false);
+  u.onend = done;
   speechSynthesis.speak(u);
 }
 

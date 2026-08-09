@@ -1,0 +1,72 @@
+{
+  "trackKey": "f1-17",
+  "track": "Red Bull Ring",
+  "game": "f1",
+  "sessionType": "Race",
+  "mode": "race",
+  "finishedAt": 1786278327446,
+  "durationMin": 53.1,
+  "result": {
+    "startedP": 19,
+    "finishedP": 22,
+    "netPlaces": -3,
+    "totalLaps": 2,
+    "status": "Active"
+  },
+  "pace": {
+    "bestLapMs": 79531,
+    "idealLapMs": 79531,
+    "referenceLapMs": 69000,
+    "spreadMs": null,
+    "lapCount": 1
+  },
+  "weakSegments": [
+    {
+      "fromM": 0,
+      "toM": 600,
+      "deltaMs": 6292,
+      "lostSec": 6.29
+    },
+    {
+      "fromM": 3000,
+      "toM": 4200,
+      "deltaMs": 1245,
+      "lostSec": 1.25
+    },
+    {
+      "fromM": 1400,
+      "toM": 2000,
+      "deltaMs": 710,
+      "lostSec": 0.71
+    },
+    {
+      "fromM": 2200,
+      "toM": 2600,
+      "deltaMs": 348,
+      "lostSec": 0.35
+    }
+  ],
+  "tyres": {
+    "compound": "Soft",
+    "actual": "C5",
+    "ageLaps": 0,
+    "worstWearPct": 0
+  },
+  "incidents": [
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with ALBON"
+    },
+    {
+      "kind": "penalty",
+      "lap": 1,
+      "text": "picked up a warning for a small collision"
+    }
+  ],
+  "penalties": [
+    "a warning for a small collision"
+  ],
+  "pitLossSec": 19.2,
+  "stints": []
+}

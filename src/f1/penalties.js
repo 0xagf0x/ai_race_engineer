@@ -90,6 +90,12 @@ export const INFRINGEMENTS = {
 // out a charge sheet at someone who has just been punted.
 const NOT_YOUR_FAULT = new Set([41, 42, 47, 48, 49, 50]);
 const CONTACT = new Set([3, 4, 5, 6, 35]);
+// Penalties that require the driver to do something, as opposed to being told
+// something. A warning and a lap invalidation are worth one calm mention; a
+// drive through changes the race. The engineer previously treated every PENA
+// alike, which is how a warning for light contact became "five second penalty,
+// box to serve it".
+const ACTIONABLE = new Set([0, 1, 4, 6, 9, 16, 17]);
 
 /**
  * Turn a PENA event into a sentence fragment plus enough metadata for the
@@ -112,6 +118,7 @@ export function describePenalty(ev) {
     seconds,
     lapNum: ev.lapNum,
     lapInvalidation: ev.penaltyType >= 10 && ev.penaltyType <= 15,
+    serious: ACTIONABLE.has(ev.penaltyType),
     contact: CONTACT.has(ev.infringementType),
     blameless: NOT_YOUR_FAULT.has(ev.infringementType),
     known: reason != null,

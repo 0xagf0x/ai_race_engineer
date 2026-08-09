@@ -72,6 +72,82 @@ export const freshMemory = () => ({
 const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
 const WHEELS = ["front left", "front right", "rear left", "rear right"];
 
+// Numbers are handed to the engineer as words, not numerals.
+//
+// The persona has been told three separate ways to quote the observation
+// exactly, and it still occasionally converts one number into another: a 28
+// degree spread was spoken as "fifty-seven degrees", 295 kph became "three
+// hundred and ninety-five". Numerals invite reinterpretation because saying
+// them aloud is itself a conversion. Pre-spelling them removes the step.
+const ONES = [
+  "zero",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "eleven",
+  "twelve",
+  "thirteen",
+  "fourteen",
+  "fifteen",
+  "sixteen",
+  "seventeen",
+  "eighteen",
+  "nineteen",
+];
+const TENS = [
+  "",
+  "",
+  "twenty",
+  "thirty",
+  "forty",
+  "fifty",
+  "sixty",
+  "seventy",
+  "eighty",
+  "ninety",
+];
+
+/** Whole numbers up to 999, which covers every figure the radio ever quotes. */
+export function words(n) {
+  const v = Math.round(Math.abs(n));
+  const sign = n < 0 ? "minus " : "";
+  if (v < 20) return sign + ONES[v];
+  if (v < 100) {
+    const t = TENS[Math.floor(v / 10)];
+    const o = v % 10;
+    return sign + (o ? `${t} ${ONES[o]}` : t);
+  }
+  const h = Math.floor(v / 100);
+  const rest = v % 100;
+  return sign + `${ONES[h]} hundred${rest ? ` and ${words(rest)}` : ""}`;
+}
+
+/**
+ * Seconds spoken the way an engineer says them: tenths under a second, plain
+ * decimals above.
+ */
+export function secWords(s) {
+  const v = Math.abs(s);
+  const sign = s < 0 ? "minus " : "";
+  if (v < 1) {
+    const tenths = Math.round(v * 10);
+    if (tenths === 0) return "level";
+    return sign + `${words(tenths)} ${tenths === 1 ? "tenth" : "tenths"}`;
+  }
+  const whole = Math.floor(v);
+  const tenths = Math.round((v - whole) * 10);
+  return (
+    sign + (tenths ? `${words(whole)} point ${words(tenths)}` : words(whole))
+  );
+}
+
 function fmtLap(ms) {
   if (!ms || ms <= 0) return "--:--.---";
   const m = Math.floor(ms / 60000);
@@ -161,7 +237,7 @@ export function evaluate(state, mem) {
       id: "next_corner",
       priority: 1,
       cooldownMs: 4000,
-      fact: `braking zone in ${c.brakeInM} metres, reference is gear ${c.gear} and ${c.minSpeedKph} kph minimum`,
+      fact: `brake in ${words(c.brakeInM)} metres from here, reference is gear ${words(c.gear)} and ${words(c.minSpeedKph)} kph minimum`,
     });
   }
 
@@ -238,21 +314,21 @@ export function evaluate(state, mem) {
           id: "tyre_temp",
           priority: 3,
           cooldownMs: 30000,
-          fact: `${where} tyre at ${Math.round(hottest)} degrees, overheating`,
+          fact: `${where} tyre at ${words(hottest)} degrees, overheating`,
         });
       } else if (band === "warm") {
         out.push({
           id: "tyre_temp",
           priority: 2,
           cooldownMs: 30000,
-          fact: `${where} running warm at ${Math.round(hottest)} degrees`,
+          fact: `${where} running warm at ${words(hottest)} degrees`,
         });
       } else if (band === "cold" && avg(temps) < 75) {
         out.push({
           id: "tyre_temp",
           priority: 2,
           cooldownMs: 30000,
-          fact: `tyres still cold, averaging ${Math.round(avg(temps))} degrees`,
+          fact: `tyres still cold, averaging ${words(avg(temps))} degrees`,
         });
       } else if (band === "working") {
         // Crossing into the working window is worth knowing after a cold start,
@@ -261,7 +337,7 @@ export function evaluate(state, mem) {
           id: "tyre_temp",
           priority: 1,
           cooldownMs: 30000,
-          fact: `tyres are in the window now, ${Math.round(avg(temps))} degrees average`,
+          fact: `tyres are in the window now, ${words(avg(temps))} degrees average`,
         });
       }
     }
@@ -276,7 +352,7 @@ export function evaluate(state, mem) {
         id: "tyre_balance",
         priority: 2,
         cooldownMs: 120000,
-        fact: `${spread} degree spread across the tyres, hottest is the ${where}`,
+        fact: `the ${where} is ${words(spread)} degrees hotter than the coldest tyre`,
       });
     }
   }
@@ -294,7 +370,7 @@ export function evaluate(state, mem) {
         id: "tyre_wear",
         priority: 3,
         cooldownMs: 60000,
-        fact: `tyre wear up to ${Math.round(worst)} percent on the ${WHEELS[wear.indexOf(worst)]} after ${st.tyreAgeLaps ?? "?"} laps on the ${st.tyre ?? "current set"}`,
+        fact: `tyre wear up to ${words(worst)} percent on the ${WHEELS[wear.indexOf(worst)]} after ${words(st.tyreAgeLaps ?? 0)} laps on the ${st.tyre ?? "current set"}`,
       });
     }
   }
@@ -330,7 +406,7 @@ export function evaluate(state, mem) {
       id: "ers_low",
       priority: 2,
       cooldownMs: 90000,
-      fact: `energy store down to ${st.ersStorePct} percent`,
+      fact: `energy store down to ${words(st.ersStorePct)} percent`,
     });
   }
   if (p.engineTemp > 120) {
@@ -338,7 +414,7 @@ export function evaluate(state, mem) {
       id: "engine_hot",
       priority: 3,
       cooldownMs: 60000,
-      fact: `engine temperature ${p.engineTemp} degrees`,
+      fact: `engine temperature ${words(p.engineTemp)} degrees`,
     });
   }
   // Only when the total moves. Outstanding seconds are true for as long as they
@@ -520,10 +596,7 @@ function gapRules(state, mem) {
         id: "gap_ahead",
         priority: gap < 1 ? 3 : 2,
         cooldownMs: 12000,
-        fact:
-          gap < 1
-            ? `${ahead.name} is ${gap.toFixed(1)} ahead, inside DRS range`
-            : `closing on ${ahead.name}, ${gap.toFixed(1)} ahead`,
+        fact: `${behind.name} is ${secWords(gap)} behind and in range`,
       });
     } else if (gap >= 3) {
       mem.saidGapAhead = null;

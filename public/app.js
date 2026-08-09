@@ -18,10 +18,31 @@ let serverTts = false;
 let wakeRecognition = null;
 let wakeEnabled = false;
 let wakeRestartTimer = null;
+let silenceTimer = null;
+let wakeTriggered = false;
+
+// How long a pause means "he has finished talking". Long enough not to cut off
+// someone thinking mid-sentence, short enough that the answer does not feel
+// delayed. Only used for the wake word: the button and the controller have an
+// explicit release.
+const SILENCE_MS = 1400;
 
 // Spoken triggers. Kept short and distinctive: a long phrase is harder to catch
 // mid-corner, and a common word fires on ordinary speech.
 const WAKE_WORDS = ["radio", "engineer", "box box"];
+
+// Display units. The bridge always sends metric; conversion is presentation
+// only, so nothing downstream of the socket has to know about it.
+let units = localStorage.getItem("units") === "mph" ? "mph" : "kmh";
+const KPH_TO_MPH = 0.621371;
+const M_TO_FT = 3.28084;
+
+const speedOut = (kph) =>
+  kph == null ? 0 : Math.round(units === "mph" ? kph * KPH_TO_MPH : kph);
+const speedUnit = () => (units === "mph" ? "mph" : "km/h");
+const distOut = (m) =>
+  m == null ? 0 : Math.round(units === "mph" ? m * M_TO_FT : m);
+const distUnit = () => (units === "mph" ? "ft" : "m");
 
 // ---------------- WebSocket ----------------
 function connect() {
@@ -82,6 +103,14 @@ function ensureRecognition() {
       if (e.results[i].isFinal) final += e.results[i][0].transcript;
     }
     if (final) transcriptBuf += final;
+
+    // Wake word transmissions have no release, so silence ends them. Any
+    // result at all resets the clock, interim included, so a pause for breath
+    // does not send half a question.
+    if (wakeTriggered) {
+      clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(stopTalking, SILENCE_MS);
+    }
   };
   r.onerror = (e) => {
     if (e.error === "not-allowed")
@@ -120,7 +149,12 @@ function startWakeListening() {
       const hit = WAKE_WORDS.find((w) => said.startsWith(w));
       if (hit) {
         r.stop();
+        wakeTriggered = true;
         startTalking();
+        // If he says the wake word and then nothing at all, the transmission
+        // still has to close itself.
+        clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(stopTalking, SILENCE_MS + 1500);
         return;
       }
     }
@@ -182,6 +216,8 @@ function startTalking() {
 function stopTalking() {
   if (!micActive) return;
   micActive = false;
+  wakeTriggered = false;
+  clearTimeout(silenceTimer);
   setRadioState("idle");
   squelch(false);
   if (recognition) {
@@ -421,6 +457,20 @@ $("feedbackLevel")?.addEventListener("change", (e) => {
   send({ type: "feedback-level", level: e.target.value });
 });
 
+// Units. Persisted so the choice survives a reload, and applied immediately
+// rather than waiting for the next telemetry frame.
+$("units")?.addEventListener("change", (e) => {
+  units = e.target.value === "mph" ? "mph" : "kmh";
+  localStorage.setItem("units", units);
+  $("speedUnit").textContent = speedUnit();
+  render();
+});
+const unitSel = $("units");
+if (unitSel) {
+  unitSel.value = units;
+  $("speedUnit").textContent = speedUnit();
+}
+
 // Wake word. Off by default: continuous recognition costs battery and CPU, and
 // on speakers the engineer's own voice can come back through the mic.
 $("wakeWord")?.addEventListener("change", (e) => {
@@ -431,6 +481,39 @@ $("wakeWord")?.addEventListener("change", (e) => {
     stopWakeListening();
   }
 });
+
+// Wear to colour. Green through amber to red across the range that actually
+// matters: a set at thirty percent is fine, sixty is worth planning around,
+// eighty is a problem. Interpolating rather than stepping means the bar moves
+// continuously through a stint instead of jumping between three states.
+function wearColour(pct) {
+  const stops = [
+    { at: 0, rgb: [61, 220, 151] },
+    { at: 45, rgb: [255, 176, 32] },
+    { at: 80, rgb: [255, 77, 77] },
+  ];
+  const p = Math.max(0, Math.min(100, pct));
+  let lo = stops[0];
+  let hi = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (p >= stops[i].at && p <= stops[i + 1].at) {
+      lo = stops[i];
+      hi = stops[i + 1];
+      break;
+    }
+  }
+  const span = hi.at - lo.at || 1;
+  const t = Math.max(0, Math.min(1, (p - lo.at) / span));
+  const mix = lo.rgb.map((c, i) => Math.round(c + (hi.rgb[i] - c) * t));
+  return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
+}
+
+// Seconds to a lap time string, for the reference readout.
+function fmtSec(s) {
+  const m = Math.floor(s / 60);
+  const rest = (s % 60).toFixed(3).padStart(6, "0");
+  return `${m}:${rest}`;
+}
 
 // ---------------- Rendering ----------------
 function render() {
@@ -467,7 +550,7 @@ function render() {
 
   const p = state.player || {};
 
-  $("speed").textContent = p.speed ?? 0;
+  $("speed").textContent = speedOut(p.speed);
   $("gear").textContent =
     p.gear === 0 ? "N" : p.gear === -1 ? "R" : (p.gear ?? "N");
   $("suggestGear").textContent =
@@ -480,16 +563,77 @@ function render() {
   $("thrBar").style.width = `${(p.throttle || 0) * 100}%`;
   $("brkBar").style.width = `${(p.brake || 0) * 100}%`;
 
-  // Wheel arrays are FL FR RL RR from the bridge now, so data-i is 0,1,2,3 in
+  // Live delta to the reference lap. Hidden entirely until a reference exists,
+  // because an empty box on lap one reads as broken rather than as pending.
+  const dbox = $("deltaBox");
+  const d = state.delta;
+  if (d && d.liveDeltaSec != null) {
+    const v = d.liveDeltaSec;
+    dbox.classList.add("on");
+    // Two hundredths either side counts as level: the sample rate cannot
+    // resolve finer than that, and a number flickering between +0.01 and
+    // -0.01 is noise dressed as information.
+    const sign = v < -0.02 ? "up" : v > 0.02 ? "down" : "level";
+    dbox.classList.toggle("up", sign === "up");
+    dbox.classList.toggle("down", sign === "down");
+    dbox.classList.toggle("level", sign === "level");
+    $("deltaVal").textContent =
+      `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(2)}`;
+    $("deltaRef").textContent = d.referenceLapSec
+      ? `best ${fmtSec(d.referenceLapSec)}`
+      : "";
+
+    // Losing stretches from the last completed lap, as a bar per segment.
+    const worst = d.losingMostTime ?? [];
+    const trace = $("deltaTrace");
+    if (worst.length !== trace.children.length) {
+      trace.innerHTML = worst.map(() => "<i></i>").join("");
+    }
+    worst.forEach((line, idx) => {
+      const bar = trace.children[idx];
+      if (!bar) return;
+      // losingMostTime is a list of strings, so the seconds are pulled back
+      // out for the height rather than being sent twice.
+      const secs = parseFloat(line) || 0;
+      bar.style.height = `${Math.min(100, secs * 60)}%`;
+      bar.title = line;
+    });
+  } else {
+    dbox.classList.remove("on");
+  }
+
+  // Wheel arrays are FL FR RL RR from the bridge, so data-i is 0,1,2,3 in
   // display order and no reordering happens here.
   document.querySelectorAll(".tyre").forEach((el) => {
     const i = +el.dataset.i;
     const t = p.tyreSurfaceTemps?.[i];
     const w = p.damage?.tyreWear?.[i];
+
     el.querySelector(".tt").textContent = t != null ? `${t}°` : "–";
-    el.querySelector(".tw").textContent = w != null ? `${w}% wear` : "";
-    el.classList.toggle("warm", t > 100 && t <= 110);
-    el.classList.toggle("hot", t > 110);
+
+    const tread = el.querySelector(".ttread");
+    const clip = el.querySelector(".tclip");
+    const label = el.querySelector(".tw");
+
+    if (w != null) {
+      // Tread runs y=6 to y=62 in the SVG. Wear eats it from the top, so a set
+      // at 40 percent shows 60 percent of its rubber left.
+      const worn = Math.max(0, Math.min(100, w));
+      const top = 6 + (56 * worn) / 100;
+      clip.setAttribute("y", top);
+      clip.setAttribute("height", Math.max(1, 62 - top));
+      tread.setAttribute("fill", wearColour(worn));
+      label.textContent = `${Math.round(worn)}% worn`;
+    } else {
+      clip.setAttribute("y", 6);
+      clip.setAttribute("height", 56);
+      tread.setAttribute("fill", wearColour(0));
+      label.textContent = "";
+    }
+
+    el.classList.toggle("cold", t != null && t > 0 && t < 65);
+    el.classList.toggle("warm", t > 105 && t <= 115);
+    el.classList.toggle("hot", t > 115);
   });
 
   const rows = [];
@@ -554,6 +698,6 @@ function render() {
   if (state.coach) {
     const c = state.coach;
     $("coachText").innerHTML =
-      `Turn <b>${c.cornerIndex}</b> in <b>${c.brakeInM} m</b> — down to <b>gear ${c.gear}</b>, entry <b>${c.entrySpeedKph} km/h</b>, apex ~<b>${c.minSpeedKph} km/h</b>`;
+      `Turn <b>${c.cornerIndex}</b> in <b>${distOut(c.brakeInM)} ${distUnit()}</b> — down to <b>gear ${c.gear}</b>, entry <b>${speedOut(c.entrySpeedKph)} ${speedUnit()}</b>, apex ~<b>${speedOut(c.minSpeedKph)} ${speedUnit()}</b>`;
   }
 }

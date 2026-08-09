@@ -209,33 +209,87 @@ body {
   background: var(--red);
 }
 
-.tyres {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 12px;
+/* ---------- tyres ---------- */
+/* Absolute positions on a fixed-size canvas: the tyres have to sit where the
+   wheels are, and a grid cannot express "outboard of the sidepod". Each tyre
+   carries its own --x/--y so the layout is legible in the markup. */
+.carmap {
+  position: relative;
+  width: 120px;
+  height: 168px;
+  margin: 14px auto 16px;
 }
+.chassis {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.chassis path,
+.chassis rect {
+  fill: #171d23;
+  stroke: #232b33;
+  stroke-width: 1;
+}
+
 .tyre {
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 8px 6px;
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: 30px;
   text-align: center;
 }
+.tsvg {
+  display: block;
+  width: 30px;
+  height: 46px;
+}
+/* Unworn rubber sits under the tread fill, so wear reads as rubber lost
+   rather than as a bar emptying. */
+.ttrack {
+  fill: #10151a;
+}
+.ttread {
+  transition: fill 400ms ease;
+}
+.tclip {
+  transition:
+    y 400ms ease,
+    height 400ms ease;
+}
+/* Temperature is the carcass outline: the signal that changes inside a lap,
+   caught peripherally without reading a number. Thresholds match TYRE_BANDS
+   in src/callouts.js so the panel and the engineer agree about "warm". */
+.tcarcass {
+  fill: none;
+  stroke: #2b343d;
+  stroke-width: 2;
+  transition: stroke 300ms;
+}
+.tyre.cold .tcarcass {
+  stroke: #4a7fd4;
+}
+.tyre.warm .tcarcass {
+  stroke: var(--amber);
+}
+.tyre.hot .tcarcass {
+  stroke: var(--red);
+  filter: drop-shadow(0 0 4px rgba(255, 77, 77, 0.6));
+}
+
 .tyre .tt {
   display: block;
-  font-size: 16px;
+  font-family: var(--disp);
   font-weight: 700;
+  font-size: 15px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
 .tyre .tw {
   display: block;
-  font-size: 10px;
+  font-size: 9px;
   color: var(--dim);
-}
-.tyre.warm {
-  border-color: var(--amber);
-}
-.tyre.hot {
-  border-color: var(--red);
+  font-variant-numeric: tabular-nums;
 }
 
 .statrows {
@@ -336,6 +390,97 @@ body {
 .pitflag {
   color: var(--amber);
   font-size: 10px;
+}
+
+/* ---------- delta ---------- */
+.deltabox {
+  display: none;
+  align-items: center;
+  gap: 14px;
+  background: #0a0d10;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  transition:
+    border-color 250ms,
+    background 250ms;
+}
+.deltabox.on {
+  display: flex;
+}
+/* Up on the reference is green, down is red, and the border carries it too so
+   the state registers peripherally without reading the digits. */
+.deltabox.up {
+  border-left-color: var(--green);
+}
+.deltabox.down {
+  border-left-color: var(--red);
+}
+.deltabox.level {
+  border-left-color: var(--dim);
+}
+.dmain {
+  display: flex;
+  align-items: baseline;
+  min-width: 130px;
+}
+.dval {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition: color 250ms;
+}
+.deltabox.up .dval {
+  color: var(--green);
+}
+.deltabox.down .dval {
+  color: var(--red);
+}
+.deltabox.level .dval {
+  color: var(--text);
+}
+.dunit {
+  font-family: var(--disp);
+  font-size: 18px;
+  color: var(--dim);
+  margin-left: 3px;
+}
+.dmeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dlabel {
+  font-family: var(--disp);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--dim);
+}
+.dref {
+  font-size: 12px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+/* Where the time went on the last lap, as a row of bars. Reads at a glance as
+   a shape rather than as numbers: a spike is a corner worth working on. */
+.dtrace {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 34px;
+  flex: 1;
+  min-width: 0;
+}
+.dtrace i {
+  flex: 1;
+  min-width: 2px;
+  background: var(--red);
+  border-radius: 1px 1px 0 0;
+  opacity: 0.85;
 }
 
 /* ---------- radio (signature) ---------- */

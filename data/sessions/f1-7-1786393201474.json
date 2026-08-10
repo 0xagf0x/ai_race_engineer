@@ -1,0 +1,137 @@
+{
+  "trackKey": "f1-7",
+  "track": "Silverstone",
+  "game": "f1",
+  "sessionType": "Race",
+  "mode": "race",
+  "finishedAt": 1786393201474,
+  "durationMin": 8,
+  "result": {
+    "startedP": 11,
+    "finishedP": 14,
+    "netPlaces": -3,
+    "totalLaps": 5,
+    "status": "Active"
+  },
+  "pace": {
+    "bestLapMs": 93691,
+    "idealLapMs": 93041,
+    "referenceLapMs": 68842,
+    "spreadMs": 3524,
+    "lapCount": 4
+  },
+  "weakSegments": [
+    {
+      "fromM": 800,
+      "toM": 1200,
+      "deltaMs": 5544,
+      "lostSec": 5.54
+    },
+    {
+      "fromM": 5000,
+      "toM": 5800,
+      "deltaMs": 3975,
+      "lostSec": 3.98
+    },
+    {
+      "fromM": 1800,
+      "toM": 2200,
+      "deltaMs": 2595,
+      "lostSec": 2.6
+    },
+    {
+      "fromM": 3400,
+      "toM": 3800,
+      "deltaMs": 275,
+      "lostSec": 0.28
+    }
+  ],
+  "tyres": {
+    "compound": "Soft",
+    "actual": "C4",
+    "ageLaps": 4,
+    "worstWearPct": 20
+  },
+  "incidents": [
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with car 41"
+    },
+    {
+      "kind": "penalty",
+      "lap": 3,
+      "text": "picked up a warning for running wide and gaining a little time"
+    },
+    {
+      "kind": "penalty",
+      "lap": 3,
+      "text": "picked up a warning for running wide and gaining a little time"
+    },
+    {
+      "kind": "penalty",
+      "lap": 3,
+      "text": "picked up a warning for running wide and gaining a little time"
+    },
+    {
+      "kind": "penalty",
+      "lap": 3,
+      "text": "picked up a 2 second penalty for repeated warnings"
+    },
+    {
+      "kind": "penalty",
+      "lap": 4,
+      "text": "picked up a warning for running wide and gaining a little time"
+    },
+    {
+      "kind": "penalty",
+      "lap": 4,
+      "text": "picked up a warning for running wide and gaining a little time"
+    },
+    {
+      "kind": "penalty",
+      "lap": 5,
+      "text": "picked up a warning for running wide and gaining a little time"
+    },
+    {
+      "kind": "penalty",
+      "lap": 5,
+      "text": "picked up a 2 second penalty for repeated warnings"
+    }
+  ],
+  "penalties": [
+    "a warning for running wide and gaining a little time",
+    "a warning for running wide and gaining a little time",
+    "a warning for running wide and gaining a little time",
+    "a 2 second penalty for repeated warnings",
+    "a warning for running wide and gaining a little time",
+    "a warning for running wide and gaining a little time",
+    "a warning for running wide and gaining a little time",
+    "a 2 second penalty for repeated warnings"
+  ],
+  "pitLossSec": null,
+  "stints": [
+    {
+      "compound": "C4",
+      "startLap": 2,
+      "endLap": 5,
+      "laps": [
+        {
+          "age": 1,
+          "ms": 94053,
+          "at": 195.08224487304688
+        },
+        {
+          "age": 2,
+          "ms": 94228,
+          "at": 289.3175964355469
+        },
+        {
+          "age": 3,
+          "ms": 93691,
+          "at": 383.0189208984375
+        }
+      ]
+    }
+  ]
+}

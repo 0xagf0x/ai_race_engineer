@@ -296,7 +296,8 @@ export class Strategy {
     if (perLapGain <= 0) return null;
 
     return {
-      rival: rival.name,
+      // The resolved name, so an undercut call does not say "Player".
+      rival: rival.spokenName ?? rival.name,
       pitLossSec: loss.sec,
       pitLossSource: loss.source,
       degSecPerLap: deg.secPerLap,

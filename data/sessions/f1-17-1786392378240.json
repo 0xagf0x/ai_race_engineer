@@ -1,0 +1,138 @@
+{
+  "trackKey": "f1-17",
+  "track": "Red Bull Ring",
+  "game": "f1",
+  "sessionType": "Race",
+  "mode": "race",
+  "finishedAt": 1786392378240,
+  "durationMin": 7.4,
+  "result": {
+    "startedP": 3,
+    "finishedP": 11,
+    "netPlaces": -8,
+    "totalLaps": 5,
+    "status": "Active"
+  },
+  "pace": {
+    "bestLapMs": 69655,
+    "idealLapMs": 68327,
+    "referenceLapMs": 69000,
+    "spreadMs": 2963,
+    "lapCount": 4
+  },
+  "weakSegments": [
+    {
+      "fromM": 2000,
+      "toM": 2800,
+      "deltaMs": 5858,
+      "lostSec": 5.86
+    },
+    {
+      "fromM": 1200,
+      "toM": 1800,
+      "deltaMs": 898,
+      "lostSec": 0.9
+    },
+    {
+      "fromM": 0,
+      "toM": 600,
+      "deltaMs": 681,
+      "lostSec": 0.68
+    },
+    {
+      "fromM": 3000,
+      "toM": 3800,
+      "deltaMs": 510,
+      "lostSec": 0.51
+    }
+  ],
+  "tyres": {
+    "compound": "Soft",
+    "actual": "C5",
+    "ageLaps": 4,
+    "worstWearPct": 20
+  },
+  "incidents": [
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with car 3"
+    },
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with car 3"
+    },
+    {
+      "kind": "incident",
+      "lap": 3,
+      "text": "contact with car 15"
+    },
+    {
+      "kind": "incident",
+      "lap": 3,
+      "text": "contact with car 3"
+    },
+    {
+      "kind": "incident",
+      "lap": 3,
+      "text": "contact with car 15"
+    },
+    {
+      "kind": "incident",
+      "lap": 4,
+      "text": "contact with car 15"
+    },
+    {
+      "kind": "incident",
+      "lap": 4,
+      "text": "contact with car 2"
+    },
+    {
+      "kind": "penalty",
+      "lap": 4,
+      "text": "picked up a warning for running wide and gaining a little time"
+    },
+    {
+      "kind": "penalty",
+      "lap": 5,
+      "text": "picked up a warning for running wide and gaining a little time"
+    },
+    {
+      "kind": "penalty",
+      "lap": 5,
+      "text": "picked up a 2 second penalty for repeated warnings"
+    }
+  ],
+  "penalties": [
+    "a warning for running wide and gaining a little time",
+    "a warning for running wide and gaining a little time",
+    "a warning for running wide and gaining a little time",
+    "a 2 second penalty for repeated warnings"
+  ],
+  "pitLossSec": null,
+  "stints": [
+    {
+      "compound": "C5",
+      "startLap": 2,
+      "endLap": 5,
+      "laps": [
+        {
+          "age": 1,
+          "ms": 70853,
+          "at": 142.91722106933594
+        },
+        {
+          "age": 2,
+          "ms": 69655,
+          "at": 212.57125854492188
+        },
+        {
+          "age": 3,
+          "ms": 76447,
+          "at": 289.00726318359375
+        }
+      ]
+    }
+  ]
+}

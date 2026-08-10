@@ -14,6 +14,7 @@ import { Delta } from "./delta.js";
 import { SessionStore } from "./sessions.js";
 import { Strategy } from "./strategy.js";
 import { SlipDetector } from "./slip.js";
+import { spokenName } from "./names.js";
 
 const log = {
   info: (...a) => console.log("[bridge]", ...a),
@@ -299,7 +300,7 @@ function handleF1Event(ev) {
   ) {
     const otherIdx =
       ev.vehicle1Idx === me?.idx ? ev.vehicle2Idx : ev.vehicle1Idx;
-    const other = state._participants?.drivers?.[otherIdx]?.name;
+    const other = spokenName(state._names, otherIdx);
     arc.note(
       "incident",
       `contact${other ? ` with ${other}` : " with another car"}`,
@@ -308,7 +309,10 @@ function handleF1Event(ev) {
 
   callouts.onEvent(
     ev,
-    (idx) => state._participants?.drivers?.[idx]?.name,
+    // The spoken name, not the gamertag. Events and the timing tower were
+    // resolving names by different routes, so a fix in one left the other
+    // saying "Player has gone past".
+    (idx) => spokenName(state._names, idx),
     (e) => (minePena ? describePenalty(e) : null),
   );
 

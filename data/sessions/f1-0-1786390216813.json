@@ -1,0 +1,123 @@
+{
+  "trackKey": "f1-0",
+  "track": "Melbourne",
+  "game": "f1",
+  "sessionType": "Race",
+  "mode": "race",
+  "finishedAt": 1786390216813,
+  "durationMin": 8.8,
+  "result": {
+    "startedP": 7,
+    "finishedP": 14,
+    "netPlaces": -7,
+    "totalLaps": 2,
+    "status": "DNF"
+  },
+  "pace": {
+    "bestLapMs": 97131,
+    "idealLapMs": 97130,
+    "referenceLapMs": 97096,
+    "spreadMs": null,
+    "lapCount": 1
+  },
+  "weakSegments": [],
+  "tyres": {
+    "compound": "Soft",
+    "actual": "C5",
+    "ageLaps": 1,
+    "worstWearPct": 7
+  },
+  "incidents": [
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with Tannenzapfen693"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with TRT Robin"
+    },
+    {
+      "kind": "penalty",
+      "lap": 1,
+      "text": "picked up a warning for a small collision"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with TRT Robin"
+    },
+    {
+      "kind": "penalty",
+      "lap": 1,
+      "text": "picked up a warning for running wide and gaining a little time"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "penalty",
+      "lap": 2,
+      "text": "picked up a 3 second penalty for cutting the corner and gaining time"
+    },
+    {
+      "kind": "penalty",
+      "lap": 2,
+      "text": "picked up a 2 second penalty for cutting the corner and gaining time"
+    },
+    {
+      "kind": "penalty",
+      "lap": 2,
+      "text": "picked up a warning for running wide and gaining a little time"
+    },
+    {
+      "kind": "penalty",
+      "lap": 2,
+      "text": "picked up a warning for running wide and gaining a little time"
+    },
+    {
+      "kind": "penalty",
+      "lap": 2,
+      "text": "picked up a 2 second penalty for repeated warnings"
+    }
+  ],
+  "penalties": [
+    "a warning for a small collision",
+    "a warning for running wide and gaining a little time",
+    "a 3 second penalty for cutting the corner and gaining time",
+    "a 2 second penalty for cutting the corner and gaining time",
+    "a warning for running wide and gaining a little time",
+    "a warning for running wide and gaining a little time",
+    "a 2 second penalty for repeated warnings"
+  ],
+  "pitLossSec": null,
+  "stints": []
+}

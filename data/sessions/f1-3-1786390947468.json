@@ -1,0 +1,141 @@
+{
+  "trackKey": "f1-3",
+  "track": "Bahrain",
+  "game": "f1",
+  "sessionType": "Race",
+  "mode": "race",
+  "finishedAt": 1786390947468,
+  "durationMin": 9.9,
+  "result": {
+    "startedP": 1,
+    "finishedP": 14,
+    "netPlaces": -13,
+    "totalLaps": 5,
+    "status": "Active"
+  },
+  "pace": {
+    "bestLapMs": 96125,
+    "idealLapMs": 94757,
+    "referenceLapMs": 96085,
+    "spreadMs": 6049,
+    "lapCount": 4
+  },
+  "weakSegments": [
+    {
+      "fromM": 0,
+      "toM": 1000,
+      "deltaMs": 1499,
+      "lostSec": 1.5
+    },
+    {
+      "fromM": 1400,
+      "toM": 1600,
+      "deltaMs": 1013,
+      "lostSec": 1.01
+    },
+    {
+      "fromM": 3800,
+      "toM": 4200,
+      "deltaMs": 235,
+      "lostSec": 0.23
+    },
+    {
+      "fromM": 1800,
+      "toM": 2200,
+      "deltaMs": 226,
+      "lostSec": 0.23
+    }
+  ],
+  "tyres": {
+    "compound": "Soft",
+    "actual": "C3",
+    "ageLaps": 4,
+    "worstWearPct": 15
+  },
+  "incidents": [
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with [JBT] Tim Uhlmann"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with [JBT] Tim Uhlmann"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with ricewolf78"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "penalty",
+      "lap": 1,
+      "text": "picked up a 3 second penalty for a big collision"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "penalty",
+      "lap": 1,
+      "text": "picked up a warning for a small collision"
+    },
+    {
+      "kind": "incident",
+      "lap": 4,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "incident",
+      "lap": 4,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "incident",
+      "lap": 5,
+      "text": "contact with Player"
+    }
+  ],
+  "penalties": [
+    "a 3 second penalty for a big collision",
+    "a warning for a small collision"
+  ],
+  "pitLossSec": null,
+  "stints": [
+    {
+      "compound": "C3",
+      "startLap": 2,
+      "endLap": 5,
+      "laps": [
+        {
+          "age": 1,
+          "ms": 96125,
+          "at": 205.7427215576172
+        },
+        {
+          "age": 2,
+          "ms": 98196,
+          "at": 303.9393615722656
+        },
+        {
+          "age": 3,
+          "ms": 98860,
+          "at": 402.7860107421875
+        }
+      ]
+    }
+  ]
+}

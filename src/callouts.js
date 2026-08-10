@@ -12,8 +12,19 @@
 // instead: my own deltaAheadMs is the gap to the car in front of me, and the gap
 // to the car behind is that car's deltaAheadMs. See gapRules().
 //
+// Each candidate carries three things for the speaking layer:
+//   fact    prose for the model, used when the bank has nothing for this id
+//   data    pre-formatted fields for src/phrases.js
+//   phrase  bank key, only when one id has several shapes (tyre_temp)
+//
+// data exists because the alternative is having the model reword a sentence the
+// rule already wrote, which costs a round trip and a second of latency on every
+// call. Templates take fields, never the fact string: parsing prose back into
+// numbers is how a 28 degree spread came out as fifty-seven.
+//
 // Priorities: 1 chatter, 2 useful, 3 important, 4 urgent.
 import { setCoachUnits } from "./coach.js";
+import { phrase, makePhraseMemory } from "./phrases.js";
 
 export const LEVELS = {
   low: { minGapMs: 75000, minPriority: 3, label: "Low, key moments only" },
@@ -21,10 +32,9 @@ export const LEVELS = {
   high: { minGapMs: 12000, minPriority: 1, label: "High, constant coaching" },
 };
 
-// Urgent calls that go out instantly as canned lines rather than waiting on a
-// model round trip. Anything the driver needs to act on inside a corner belongs
-// here; everything else is worth the latency to have phrased properly.
-const INSTANT = {
+// Urgent calls that go out instantly as fixed lines. These are checked before
+// the phrase bank: there is one right thing to say and no reason to vary it.
+export const INSTANT = {
   safety_car: "Safety car, safety car.",
   fuel_critical: "Fuel critical. Lift and coast, now.",
   chequered: "Chequered flag. Good job.",
@@ -60,6 +70,7 @@ export const freshMemory = () => ({
   lastSafetyCar: "none",
   saidGapAhead: null,
   saidGapBehind: null,
+  saidPitting: [],
   saidTyreBand: null,
   saidWearPct: null,
   saidErsPct: null,
@@ -96,6 +107,9 @@ const WHEELS = ["front left", "front right", "rear left", "rear right"];
 // degree spread was spoken as "fifty-seven degrees", 295 kph became "three
 // hundred and ninety-five". Numerals invite reinterpretation because saying
 // them aloud is itself a conversion. Pre-spelling them removes the step.
+//
+// The phrase bank inherits the same convention, which is why nothing in
+// phrases.js formats a number: one formatter, one answer.
 const ONES = [
   "zero",
   "one",
@@ -165,6 +179,20 @@ export function secWords(s) {
   );
 }
 
+/**
+ * Fuel mass. Under a kilo it is spoken in grams, because secWords would round
+ * a 0.35 kilo target to "four tenths" and "four tenths of a kilo a lap" is not
+ * a thing anyone says on a pit wall.
+ */
+export function kilos(kg) {
+  const v = Math.abs(kg);
+  if (v < 1) return `${words(v * 1000)} grams`;
+  return `${secWords(v)} kilos`;
+}
+
+/** Seconds with the unit attached, for phrasings that quote a duration. */
+const secsWithUnit = (s) => `${secWords(s)} seconds`;
+
 function fmtLap(ms) {
   if (!ms || ms <= 0) return "--:--.---";
   const m = Math.floor(ms / 60000);
@@ -175,7 +203,8 @@ function fmtLap(ms) {
 /**
  * @param {object} state the live bridge state
  * @param {object} mem   rolling memory, mutated in place
- * @returns {Array<{id:string, priority:number, fact:string, cooldownMs:number}>}
+ * @returns {Array<{id:string, priority:number, fact:string, cooldownMs:number,
+ *                  data?:object, phrase?:string}>}
  */
 export function evaluate(state, mem) {
   const out = [];
@@ -189,23 +218,32 @@ export function evaluate(state, mem) {
     if (mem.lastLapSeen > 0 && lap.lastLapMs > 0) {
       const t = lap.lastLapMs;
       if (mem.bestLapMs === 0 || t < mem.bestLapMs) {
-        const gain = mem.bestLapMs
-          ? ((mem.bestLapMs - t) / 1000).toFixed(1)
-          : null;
+        const gainSec = mem.bestLapMs ? (mem.bestLapMs - t) / 1000 : null;
+        const gain = gainSec != null ? gainSec.toFixed(1) : null;
         out.push({
           id: "lap_best",
           priority: 3,
           cooldownMs: 0,
+          data: {
+            time: fmtLap(t),
+            gain: gainSec != null ? secWords(gainSec) : null,
+          },
           fact: `personal best lap ${fmtLap(t)}${gain ? `, ${gain} seconds quicker than the previous best` : ""}`,
         });
         mem.bestLapMs = t;
       } else {
-        const delta = ((t - mem.bestLapMs) / 1000).toFixed(1);
+        const deltaSec = (t - mem.bestLapMs) / 1000;
         out.push({
           id: "lap_pace",
           priority: 3,
           cooldownMs: 0,
-          fact: `lap ${mem.lastLapSeen} in ${fmtLap(t)}, ${delta} off the best of ${fmtLap(mem.bestLapMs)}`,
+          data: {
+            lap: words(mem.lastLapSeen),
+            time: fmtLap(t),
+            delta: secWords(deltaSec),
+            best: fmtLap(mem.bestLapMs),
+          },
+          fact: `lap ${mem.lastLapSeen} in ${fmtLap(t)}, ${deltaSec.toFixed(1)} off the best of ${fmtLap(mem.bestLapMs)}`,
         });
       }
       // New: we have sector history now, so we can point at where it went.
@@ -214,11 +252,16 @@ export function evaluate(state, mem) {
         mem.bestLapMs &&
         lap.idealLapMs < mem.bestLapMs - 200
       ) {
+        const availableSec = (mem.bestLapMs - lap.idealLapMs) / 1000;
         out.push({
           id: "ideal_lap",
           priority: 2,
           cooldownMs: 120000,
-          fact: `theoretical best is ${fmtLap(lap.idealLapMs)}, ${((mem.bestLapMs - lap.idealLapMs) / 1000).toFixed(1)} under the actual best, so the sectors are there on separate laps`,
+          data: {
+            ideal: fmtLap(lap.idealLapMs),
+            gain: secsWithUnit(availableSec),
+          },
+          fact: `theoretical best is ${fmtLap(lap.idealLapMs)}, ${availableSec.toFixed(1)} under the actual best, so the sectors are there on separate laps`,
         });
       }
     }
@@ -228,11 +271,16 @@ export function evaluate(state, mem) {
   // --- position changes ---
   if (lap.position > 0) {
     if (mem.lastPosition > 0 && lap.position !== mem.lastPosition) {
+      const gained = lap.position < mem.lastPosition;
       out.push({
         id: "position",
         priority: 3,
         cooldownMs: 3000,
-        fact: `${lap.position < mem.lastPosition ? "gained" : "lost"} a place, now P${lap.position}`,
+        // P4 rather than P four: the position is the one number a driver reads
+        // off his own wheel, and the timing tower writes it as a numeral.
+        phrase: gained ? "position_up" : "position_down",
+        data: { pos: lap.position },
+        fact: `${gained ? "gained" : "lost"} a place, now P${lap.position}`,
       });
     }
     mem.lastPosition = lap.position;
@@ -243,7 +291,13 @@ export function evaluate(state, mem) {
   if (fb?.ts && fb.ts !== mem.lastCornerTs) {
     mem.lastCornerTs = fb.ts;
     if (!fb.onReference) {
-      out.push({ id: "corner", priority: 1, cooldownMs: 6000, fact: fb.text });
+      out.push({
+        id: "corner",
+        priority: 1,
+        cooldownMs: 6000,
+        data: { text: fb.text },
+        fact: fb.text,
+      });
     }
   }
 
@@ -254,6 +308,13 @@ export function evaluate(state, mem) {
       id: "next_corner",
       priority: 1,
       cooldownMs: 4000,
+      data: {
+        inM: words(dist(c.brakeInM)),
+        distUnit: distUnit(),
+        gear: words(c.gear),
+        minSpeed: words(spd(c.minSpeedKph)),
+        spdUnit: spdUnit(),
+      },
       fact: `brake in ${words(dist(c.brakeInM))} ${distUnit()} from here, reference is gear ${words(c.gear)} and ${words(spd(c.minSpeedKph))} ${spdUnit()} minimum`,
     });
   }
@@ -265,17 +326,20 @@ export function evaluate(state, mem) {
   // as nearly dry.
   if (st.fuelDeltaLaps != null) {
     if (st.fuelDeltaLaps < 0) {
+      const shortLaps = Math.abs(st.fuelDeltaLaps);
       out.push({
         id: "fuel_short",
         priority: 4,
         cooldownMs: 45000,
-        fact: `fuel is ${Math.abs(st.fuelDeltaLaps).toFixed(1)} laps short of the finish, needs saving now`,
+        data: { laps: secWords(shortLaps) },
+        fact: `fuel is ${shortLaps.toFixed(1)} laps short of the finish, needs saving now`,
       });
     } else if (st.fuelDeltaLaps < 0.5) {
       out.push({
         id: "fuel_tight",
         priority: 3,
         cooldownMs: 60000,
+        data: { laps: secWords(st.fuelDeltaLaps) },
         fact: `fuel margin down to ${st.fuelDeltaLaps.toFixed(1)} of a lap, no room left`,
       });
     } else if (st.fuelDeltaLaps < 1.5) {
@@ -283,6 +347,10 @@ export function evaluate(state, mem) {
         id: "fuel_low",
         priority: 2,
         cooldownMs: 90000,
+        // Same id as the tank-percentage branch below, different shape, so the
+        // bank key has to be explicit or one rule speaks the other's numbers.
+        phrase: "fuel_margin",
+        data: { laps: secWords(st.fuelDeltaLaps) },
         fact: `fuel margin ${st.fuelDeltaLaps.toFixed(1)} laps, worth a lift and coast`,
       });
     }
@@ -294,6 +362,7 @@ export function evaluate(state, mem) {
         id: "fuel_critical",
         priority: 4,
         cooldownMs: 20000,
+        data: { pct: words(pct) },
         fact: `fuel at ${pct.toFixed(0)} percent`,
       });
     else if (pct < 20)
@@ -301,6 +370,8 @@ export function evaluate(state, mem) {
         id: "fuel_low",
         priority: 3,
         cooldownMs: 60000,
+        phrase: "fuel_pct",
+        data: { pct: words(pct) },
         fact: `fuel at ${pct.toFixed(0)} percent`,
       });
   }
@@ -331,6 +402,8 @@ export function evaluate(state, mem) {
           id: "tyre_temp",
           priority: 3,
           cooldownMs: 30000,
+          phrase: "tyre_temp_hot",
+          data: { where, temp: words(hottest) },
           fact: `${where} tyre at ${words(hottest)} degrees, overheating`,
         });
       } else if (band === "warm") {
@@ -338,6 +411,8 @@ export function evaluate(state, mem) {
           id: "tyre_temp",
           priority: 2,
           cooldownMs: 30000,
+          phrase: "tyre_temp_warm",
+          data: { where, temp: words(hottest) },
           fact: `${where} running warm at ${words(hottest)} degrees`,
         });
       } else if (band === "cold" && avg(temps) < 75) {
@@ -345,6 +420,8 @@ export function evaluate(state, mem) {
           id: "tyre_temp",
           priority: 2,
           cooldownMs: 30000,
+          phrase: "tyre_temp_cold",
+          data: { temp: `${words(avg(temps))} degrees` },
           fact: `tyres still cold, averaging ${words(avg(temps))} degrees`,
         });
       } else if (band === "working") {
@@ -354,6 +431,8 @@ export function evaluate(state, mem) {
           id: "tyre_temp",
           priority: 1,
           cooldownMs: 30000,
+          phrase: "tyre_temp_ok",
+          data: { temp: `${words(avg(temps))} degrees` },
           fact: `tyres are in the window now, ${words(avg(temps))} degrees average`,
         });
       }
@@ -369,6 +448,7 @@ export function evaluate(state, mem) {
         id: "tyre_balance",
         priority: 2,
         cooldownMs: 120000,
+        data: { where, spread: words(spread) },
         fact: `the ${where} is ${words(spread)} degrees hotter than the coldest tyre`,
       });
     }
@@ -387,6 +467,12 @@ export function evaluate(state, mem) {
         id: "tyre_wear",
         priority: 3,
         cooldownMs: 60000,
+        data: {
+          pct: words(worst),
+          where: WHEELS[wear.indexOf(worst)],
+          laps: words(st.tyreAgeLaps ?? 0),
+          compound: st.tyre ?? "current set",
+        },
         fact: `tyre wear up to ${words(worst)} percent on the ${WHEELS[wear.indexOf(worst)]} after ${words(st.tyreAgeLaps ?? 0)} laps on the ${st.tyre ?? "current set"}`,
       });
     }
@@ -402,11 +488,20 @@ export function evaluate(state, mem) {
       d.rearWing > 10 ? `rear wing ${d.rearWing}%` : null,
       d.floor > 10 ? `floor ${d.floor}%` : null,
     ].filter(Boolean);
+    // Spoken separately from the written fact: a percent sign read aloud is at
+    // the mercy of whichever voice is configured, and the numerals are exactly
+    // what the pre-spelling convention exists to avoid.
+    const spokenParts = [
+      d.frontWing > 10 ? `front wing ${words(d.frontWing)} percent` : null,
+      d.rearWing > 10 ? `rear wing ${words(d.rearWing)} percent` : null,
+      d.floor > 10 ? `floor ${words(d.floor)} percent` : null,
+    ].filter(Boolean);
     if (parts.length)
       out.push({
         id: "damage",
         priority: 4,
         cooldownMs: 60000,
+        data: { parts: spokenParts.join(", ") },
         fact: `damage: ${parts.join(", ")}`,
       });
   }
@@ -423,6 +518,7 @@ export function evaluate(state, mem) {
       id: "ers_low",
       priority: 2,
       cooldownMs: 90000,
+      data: { pct: words(st.ersStorePct) },
       fact: `energy store down to ${words(st.ersStorePct)} percent`,
     });
   }
@@ -431,6 +527,7 @@ export function evaluate(state, mem) {
       id: "engine_hot",
       priority: 3,
       cooldownMs: 60000,
+      data: { temp: words(p.engineTemp) },
       fact: `engine temperature ${words(p.engineTemp)} degrees`,
     });
   }
@@ -444,6 +541,7 @@ export function evaluate(state, mem) {
       id: "penalty",
       priority: 4,
       cooldownMs: 60000,
+      data: { sec: words(lap.penalties) },
       fact: `${lap.penalties} seconds of penalties outstanding`,
     });
   } else if (lap.penalties === 0) {
@@ -455,6 +553,7 @@ export function evaluate(state, mem) {
       id: "warnings",
       priority: 3,
       cooldownMs: 90000,
+      data: { count: words(lap.warnings) },
       fact: `${lap.warnings} track limits warnings, one more is a penalty`,
     });
   }
@@ -481,6 +580,7 @@ export function evaluate(state, mem) {
       id: "weather",
       priority: 3,
       cooldownMs: 120000,
+      data: { chance: words(rain.rainPercent), mins: words(rain.inMin) },
       fact: `${rain.rainPercent} percent chance of rain in ${rain.inMin} minutes, ${rain.weather.toLowerCase()} forecast`,
     });
   }
@@ -506,6 +606,12 @@ export function evaluate(state, mem) {
           id: "stint_window",
           priority: 3,
           cooldownMs: 90000,
+          phrase: strat.pitLoss ? "stint_window" : "stint_window_nopit",
+          data: {
+            cost: secsWithUnit(costNow),
+            laps: words(strat.tyreAgeLaps),
+            pitLoss: strat.pitLoss ? secsWithUnit(strat.pitLoss.sec) : null,
+          },
           fact:
             `this set is costing about ${costNow} seconds a lap against fresh rubber ` +
             `after ${strat.tyreAgeLaps} laps, ${deg.explanation}` +
@@ -528,6 +634,14 @@ export function evaluate(state, mem) {
           id: "undercut",
           priority: 3,
           cooldownMs: 120000,
+          data: {
+            rival: uc.rival,
+            theirAge: words(uc.theirTyreAge),
+            yourAge: words(uc.yourTyreAge),
+            perLap: secWords(uc.gainPerLapSec),
+            net: secsWithUnit(uc.netAfterTwoLapsSec),
+            pitLoss: secsWithUnit(uc.pitLossSec),
+          },
           fact:
             `undercut is on ${uc.rival}: he is ${uc.theirTyreAge} laps on his set against your ${uc.yourTyreAge}, ` +
             `fresh tyres are worth about ${uc.gainPerLapSec} seconds a lap against him, ` +
@@ -546,6 +660,11 @@ export function evaluate(state, mem) {
         id: "undercut_threat",
         priority: 3,
         cooldownMs: 120000,
+        data: {
+          rival: threat.rival,
+          theirAge: words(threat.theirTyreAge),
+          net: secsWithUnit(threat.netAfterTwoLapsSec),
+        },
         fact:
           `${threat.rival} behind is ${threat.theirTyreAge} laps on his set and can undercut us, ` +
           `worth about ${threat.netAfterTwoLapsSec} seconds if he boxes and we do not`,
@@ -564,6 +683,11 @@ export function evaluate(state, mem) {
         id: "fuel_target",
         priority: 4,
         cooldownMs: 60000,
+        data: {
+          short: secWords(f.shortfallLaps),
+          left: words(f.lapsRemaining),
+          save: kilos(f.saveKgPerLap),
+        },
         fact: `${f.shortfallLaps.toFixed(1)} laps short with ${f.lapsRemaining} to go, needs ${f.saveKgPerLap} kilos a lap saved`,
       });
     }
@@ -590,6 +714,10 @@ function gapRules(state, mem) {
   const ahead = state.opponents.find((o) => o.position === me.position - 1);
   const behind = state.opponents.find((o) => o.position === me.position + 1);
 
+  // The gamertag is for the timing tower; the radio uses the resolved name,
+  // which falls back to the race number when a name identifies half the grid.
+  const say = (o) => o.spokenName ?? o.name;
+
   // Worth another sentence if it moved three tenths, or crossed into or out of
   // DRS range, which changes what he should actually do.
   //
@@ -609,14 +737,16 @@ function gapRules(state, mem) {
     const gap = me.deltaAheadMs / 1000;
     if (gap < 3 && moved(gap, mem.saidGapAhead)) {
       mem.saidGapAhead = gap;
+      const inDrs = gap < 1;
       out.push({
         id: "gap_ahead",
-        priority: gap < 1 ? 3 : 2,
+        priority: inDrs ? 3 : 2,
         cooldownMs: 12000,
-        fact:
-          gap < 1
-            ? `${ahead.name} is ${secWords(gap)} ahead, inside DRS range`
-            : `closing on ${ahead.name}, ${secWords(gap)} ahead`,
+        phrase: inDrs ? "gap_ahead_drs" : "gap_ahead_closing",
+        data: { rival: say(ahead), gap: secWords(gap) },
+        fact: inDrs
+          ? `${say(ahead)} is ${secWords(gap)} ahead, inside DRS range`
+          : `closing on ${say(ahead)}, ${secWords(gap)} ahead`,
       });
     } else if (gap >= 3) {
       mem.saidGapAhead = null;
@@ -633,7 +763,8 @@ function gapRules(state, mem) {
         id: "under_pressure",
         priority: 3,
         cooldownMs: 12000,
-        fact: `${behind.name} is ${secWords(gap)} behind and in range`,
+        data: { rival: say(behind), gap: secWords(gap) },
+        fact: `${say(behind)} is ${secWords(gap)} behind and in range`,
       });
     } else if (gap >= 1.2) {
       mem.saidGapBehind = null;
@@ -642,13 +773,24 @@ function gapRules(state, mem) {
     mem.saidGapBehind = null;
   }
 
-  const pitting = state.opponents.filter((o) => !o.isPlayer && o.pit);
-  if (pitting.length) {
+  // A rival's stop is news once. Gated on who is newly in the lane rather than
+  // on a cooldown: under a cooldown alone a car sitting in the pit box gets
+  // announced every thirty seconds until it leaves, which is how one stop
+  // produced five calls in a five lap race.
+  const pitting = state.opponents
+    .filter((o) => !o.isPlayer && o.pit)
+    .map((o) => say(o));
+  const newlyPitting = pitting.filter((n) => !mem.saidPitting.includes(n));
+  // Cars that have left the lane drop out, so a second stop is announced again.
+  mem.saidPitting = pitting;
+  if (newlyPitting.length) {
+    const names = newlyPitting.join(", ");
     out.push({
       id: "rivals_pit",
       priority: 3,
       cooldownMs: 30000,
-      fact: `${pitting.map((o) => o.name).join(", ")} in the pits`,
+      data: { names },
+      fact: `${names} in the pits`,
     });
   }
   return out;
@@ -685,6 +827,7 @@ export class Callouts {
     this.mem = freshMemory();
     this.lastFired = {};
     this.lastCalloutAt = 0;
+    this.phraseMem = makePhraseMemory();
     this.recentLines = [];
     this.pendingEvents = [];
     this.busy = false;
@@ -704,22 +847,31 @@ export class Callouts {
   // go through the same priority and cooldown gate as everything else.
   onEvent(ev, resolveName, describe) {
     switch (ev.code) {
-      case "FTLP":
+      case "FTLP": {
+        const who = resolveName?.(ev.vehicleIdx) ?? "someone";
         this._queue({
+          // The id is per car so two drivers going quickest in quick succession
+          // are two calls, not one swallowed by a cooldown. The bank key cannot
+          // follow it, so it is named explicitly.
           id: `ftlp_${ev.vehicleIdx}`,
           priority: 2,
           cooldownMs: 10000,
-          fact: `fastest lap of the session set by ${resolveName?.(ev.vehicleIdx) ?? "someone"}`,
+          phrase: "fastest_lap",
+          data: { rival: who },
+          fact: `fastest lap of the session set by ${who}`,
         });
         break;
+      }
       case "OVTK": {
         const me = this.state.opponents?.find((o) => o.isPlayer);
         if (me && ev.overtakenVehicleIdx === me.idx) {
+          const who = resolveName?.(ev.overtakingVehicleIdx) ?? "a car";
           this._queue({
             id: "overtaken",
             priority: 3,
             cooldownMs: 8000,
-            fact: `${resolveName?.(ev.overtakingVehicleIdx) ?? "a car"} has gone past`,
+            data: { rival: who },
+            fact: `${who} has gone past`,
           });
         }
         break;
@@ -731,16 +883,18 @@ export class Callouts {
         // five-second penalty and a pit stop to serve it after a warning.
         const described = describe?.(ev);
         if (!described) break;
+        // describePenalty folds the reason into text already. The "no action
+        // needed" suffix is load bearing: without it the model reasoned its
+        // way from "a warning" to "five second penalty, box to serve it".
+        const text = described.serious
+          ? described.text
+          : `${described.text}, no action needed`;
         this._queue({
           id: "penalty_event",
           priority: described.serious ? 4 : 2,
           cooldownMs: 0,
-          // describePenalty folds the reason into text already. The "no action
-          // needed" suffix is load bearing: without it the model reasoned its
-          // way from "a warning" to "five second penalty, box to serve it".
-          fact: described.serious
-            ? described.text
-            : `${described.text}, no action needed`,
+          data: { text },
+          fact: text,
         });
         break;
       }
@@ -752,6 +906,7 @@ export class Callouts {
           id: "red_flag",
           priority: 4,
           cooldownMs: 0,
+          data: {},
           fact: "red flag, session stopped",
         });
         break;
@@ -774,6 +929,9 @@ export class Callouts {
   rewind() {
     this.mem = freshMemory();
     this.pendingEvents = [];
+    // The variant history goes too. A flashback undoing a call and then the
+    // same call coming back in identical wording is the tell that it is canned.
+    this.phraseMem = makePhraseMemory();
   }
 
   /**
@@ -831,14 +989,34 @@ export class Callouts {
     this.lastFired[chosen.id] = now;
     this.lastCalloutAt = now;
 
-    // Urgent calls skip the model entirely. A canned line now beats a better
-    // worded one two seconds later.
+    // Three speaking paths, cheapest first.
+    //
+    // A fixed line for the handful of calls where there is one right thing to
+    // say and varying it would only make it slower to recognise.
     const instant = INSTANT[chosen.id];
     if (instant) {
       this.speak(instant);
       return;
     }
 
+    // The bank, which covers everything the rules know the shape of. The rule
+    // has already computed the numbers and spelled them out, so a model round
+    // trip here buys wording alone, at a cost per call and a second of latency
+    // while the driver is waiting to hear it.
+    const spoken = phrase(
+      chosen.phrase ?? chosen.id,
+      chosen.data,
+      this.phraseMem,
+    );
+    if (spoken) {
+      // Templated lines still count as recent, so the model does not echo a
+      // phrasing the driver has just heard on the calls that do reach it.
+      this.recentLines = [...this.recentLines, spoken].slice(-6);
+      this.speak(spoken);
+      return;
+    }
+
+    // The model, for anything the bank has no entry for.
     this.busy = true;
     try {
       const line = await this.engineer.callout(chosen.fact, this.recentLines);

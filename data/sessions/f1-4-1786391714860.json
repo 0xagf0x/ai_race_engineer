@@ -1,0 +1,124 @@
+{
+  "trackKey": "f1-4",
+  "track": "Barcelona",
+  "game": "f1",
+  "sessionType": "Race",
+  "mode": "race",
+  "finishedAt": 1786391714860,
+  "durationMin": 7.4,
+  "result": {
+    "startedP": null,
+    "finishedP": 11,
+    "netPlaces": 0,
+    "totalLaps": 5,
+    "status": "Active"
+  },
+  "pace": {
+    "bestLapMs": 78877,
+    "idealLapMs": 77714,
+    "referenceLapMs": 78840,
+    "spreadMs": 7006,
+    "lapCount": 4
+  },
+  "weakSegments": [],
+  "tyres": {
+    "compound": "Soft",
+    "actual": "C3",
+    "ageLaps": 4,
+    "worstWearPct": 11
+  },
+  "incidents": [
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "penalty",
+      "lap": 1,
+      "text": "picked up a warning for running wide and gaining a little time"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with KimiRaikkonen98"
+    },
+    {
+      "kind": "penalty",
+      "lap": 1,
+      "text": "picked up a warning for running wide and gaining a little time"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "penalty",
+      "lap": 1,
+      "text": "picked up a 2 second penalty for cutting the corner and gaining time"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "penalty",
+      "lap": 2,
+      "text": "picked up a warning for running wide and gaining a little time"
+    },
+    {
+      "kind": "penalty",
+      "lap": 2,
+      "text": "picked up a 2 second penalty for repeated warnings"
+    },
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with Player"
+    },
+    {
+      "kind": "incident",
+      "lap": 5,
+      "text": "contact with kratigno0"
+    }
+  ],
+  "penalties": [
+    "a warning for running wide and gaining a little time",
+    "a warning for running wide and gaining a little time",
+    "a 2 second penalty for cutting the corner and gaining time",
+    "a warning for running wide and gaining a little time",
+    "a 2 second penalty for repeated warnings"
+  ],
+  "pitLossSec": null,
+  "stints": [
+    {
+      "compound": "C3",
+      "startLap": 2,
+      "endLap": 5,
+      "laps": [
+        {
+          "age": 1,
+          "ms": 95102,
+          "at": 178.79434204101562
+        },
+        {
+          "age": 2,
+          "ms": 82554,
+          "at": 261.3779602050781
+        },
+        {
+          "age": 3,
+          "ms": 78877,
+          "at": 340.24102783203125
+        }
+      ]
+    }
+  ]
+}

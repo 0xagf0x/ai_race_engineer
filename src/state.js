@@ -5,6 +5,8 @@
 // FL FR RL RR. The F1 wire format sends RL RR FL FR, so it gets reordered on
 // the way in and nothing downstream has to remember which game it came from.
 
+import { buildNameTable } from "./names.js";
+
 import {
   SESSION_TYPES,
   WEATHER,
@@ -309,6 +311,11 @@ function rebuildOpponents(state, playerIdx, fmt) {
   if (!laps || !parts) return;
   const status = state._statusRaw;
 
+  // Resolved once per rebuild rather than per row: whether a name identifies
+  // one car is a fact about the grid, not about the driver.
+  const names = buildNameTable(parts.drivers);
+  state._names = names;
+
   const rows = [];
   for (let i = 0; i < laps.length; i++) {
     const L = laps[i];
@@ -318,7 +325,9 @@ function rebuildOpponents(state, playerIdx, fmt) {
       idx: i,
       isPlayer: i === playerIdx,
       position: L.position,
-      name: P.name,
+      name: names.get(i)?.display || P.name,
+      spokenName: names.get(i)?.spoken ?? null,
+      raceNumber: P.raceNumber,
       team: teamName(P.teamId, fmt),
       lastLap: fmtLap(L.lastLapMs),
       lastLapMs: ms(L.lastLapMs),

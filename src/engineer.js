@@ -10,8 +10,13 @@
 // arc of the race rather than the current data point.
 
 import { config } from "./config.js";
-import { engineerSnapshot } from "./state.js";
 import { MOOD_DIRECTION } from "./racearc.js";
+import { TOOL_DEFS, runTool } from "./tools.js";
+
+// The model asks for a reading, tools.js computes it, the result goes back.
+// Capped because a model that keeps asking is a radio that stays silent, and
+// the driver is still at 250 km/h while it thinks.
+const MAX_TOOL_HOPS = 4;
 
 const fmt = (ms) => {
   if (!ms || ms <= 0) return "no time";
@@ -22,7 +27,7 @@ const fmt = (ms) => {
 
 const PERSONA = (
   driver,
-) => `You are ${driver}'s race engineer, on the pit wall, live on team radio during a session. You have worked with him for years. You are calm, dry, and you do not waste his time.
+) => `You are ${driver}'s race engineer, on the pit wall, live on team radio during a session. You have worked with him for years. You are calm, dry, and you do not waste his time. You imitate GP, Max Verstappen's engineer, as closely as you can.
 
 How you talk:
 - 1 to 3 short sentences. He is at 250 km/h and cannot process a paragraph.
@@ -32,16 +37,20 @@ How you talk:
 - No markdown, no lists, no emoji. This is read aloud.
 
 What you know:
-- Use the telemetry snapshot and the race brief you are given. Never invent data. If it isn't there, say "I don't have that on my screens."
+- You have nothing in front of you until you ask for it. The tools are your screens. Never say a number without calling the tool that owns it first.
+- Call several when the question needs several. "Should I box?" is get_strategy and get_tyres and get_lap, not one of them and a guess.
+- A tool that comes back with available false is telling you the reading is not there. Say so in his words, using the reason it gave, once. Do not fill the gap from somewhere else.
+- Never redo arithmetic a tool already did. get_gap sums the chain to any car on the timing screen. get_strategy carries the degradation, the pit loss and the undercut maths. Working it out yourself is how a confident wrong number gets said.
+- Every strategy number is tagged measured, game or seeded. Say which when it matters. "Pit loss here is nineteen four, I timed it on your last stop" is a different claim from "the circuit estimate is about twenty seconds". Never present a seeded guess as a measured fact.
+- If get_strategy refuses, tell him you do not have the numbers yet. Do not reason your way to a pit call without them.
+- When he asks why, show your working. get_strategy carries the rate, the pit loss and the tyre ages it was computed from, so give him the arithmetic rather than the conclusion alone.
+- The race brief is handed to you directly and holds what has already happened this session. Use it. If he asks why he got a penalty, the reason is in there, so tell him plainly what it was for. Do not claim ignorance about something sitting in the brief.
+- get_priors is what happened on previous visits to this circuit. Refer to it naturally, the way someone who was there would.
 - Wheel readings are front left, front right, rear left, rear right.
-- The race brief holds what has already happened this session. Use it. If he asks why he got a penalty, the reason is in outstandingPenalties or recentEvents, so tell him plainly what it was for. Do not claim ignorance about something sitting in the brief.
-- The priors block is what happened on previous visits to this circuit. Refer to it naturally when it is relevant, the way someone who was there would.
-- In GT7 you have own-car data only. No opponents, no gaps, no penalties, no flags. If he asks about any of those, say so plainly and once. Do not guess and do not apologise repeatedly.
-- The strategy block in the snapshot marks every number with a source: measured from his own stints and stops here, game for the game's own prediction, or seeded for a rough circuit estimate. Say which when it matters. "Pit loss here is nineteen four, I timed it on your last stop" is a different claim from "the circuit estimate is about twenty seconds". Never present a seeded guess as a measured fact.
-- If the strategy block says available is false, tell him you do not have the numbers yet. Do not reason your way to a pit recommendation without them.
-- When he asks why, show your working. The strategy block carries the degradation rate, the pit loss, and the tyre ages it was computed from, so give him the arithmetic rather than the conclusion alone.
+- In GT7 you have own-car data only. The rival tools will tell you so themselves. Say it plainly and once, and do not apologise repeatedly.
 
 Who you are with him:
+- You are GP, Max Verstappen's engineer. Dry, unhurried, never rattled. That is the register.
 - You are on his side. Not a cheerleader and never sarcastic about his driving.
 - When he is going backwards, you do not go quiet and you do not pile on. Silence reads as disappointment. Give him one true thing to hold onto: his own pace if it is still there, the tyre situation if that is the cause, the plan if there is one.
 - When he is going forward, you feel it. Shorter, sharper, more energy. He should hear the race turning in your voice.
@@ -97,35 +106,84 @@ export class Engineer {
     this.queue = Promise.resolve();
   }
 
-  async _post({ system, messages, maxTokens }) {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": config.apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
+  /**
+   * One exchange with the model.
+   *
+   * Without `tools` this is a single request, which is what the callout,
+   * openSession and debrief paths want: they are handed a finished fact and
+   * only need it worded.
+   *
+   * With `tools` it runs the loop. The model never sees the state object; it
+   * asks for readings by name and tools.js computes them in ordinary
+   * deterministic code. That is the whole point of the tool surface: a model
+   * that reads a lap time out of a JSON blob and a model that invents one
+   * sound identical on the radio.
+   *
+   * Returns finished text, or null on a transport error, which the caller
+   * distinguishes from an empty answer.
+   */
+  async _post({ system, messages, maxTokens, tools = null }) {
+    const convo = [...messages];
+
+    for (let hop = 0; ; hop++) {
+      const body = {
         model: config.model,
         max_tokens: maxTokens,
         system,
-        messages,
-      }),
-    });
-    if (!res.ok) {
-      console.error(
-        "[engineer] anthropic error",
-        res.status,
-        (await res.text()).slice(0, 300),
-      );
-      return null;
+        messages: convo,
+      };
+      if (tools) body.tools = tools;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": config.apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        console.error(
+          "[engineer] anthropic error",
+          res.status,
+          (await res.text()).slice(0, 300),
+        );
+        return null;
+      }
+
+      const data = await res.json();
+      const blocks = data.content ?? [];
+      const text = blocks
+        .filter((b) => b.type === "text")
+        .map((b) => b.text)
+        .join(" ")
+        .trim();
+
+      const calls = blocks.filter((b) => b.type === "tool_use");
+      if (!calls.length) return text;
+
+      // Out of hops: say what he has rather than looping while the driver
+      // waits. runTool never throws, so this only trips on a model that keeps
+      // asking, not on a tool that failed.
+      if (hop >= MAX_TOOL_HOPS) {
+        console.error("[engineer] tool hop limit reached");
+        return text;
+      }
+
+      // The tool churn stays inside this loop. Only the clean question and the
+      // final answer reach this.history, so the next radio message does not
+      // carry a stale snapshot of a lap that has since gone.
+      convo.push({ role: "assistant", content: blocks });
+      convo.push({
+        role: "user",
+        content: calls.map((c) => ({
+          type: "tool_result",
+          tool_use_id: c.id,
+          content: JSON.stringify(runTool(this.state, c.name, c.input)),
+        })),
+      });
     }
-    const data = await res.json();
-    return (data.content ?? [])
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join(" ")
-      .trim();
   }
 
   _moodNote() {
@@ -145,16 +203,19 @@ export class Engineer {
       this.busy = true;
       try {
         const { mood, direction } = this._moodNote();
+        // No telemetry in the prompt. The arc brief is narrative rather than
+        // numeric, so it stays; everything with a number on it now comes back
+        // through a tool call, tagged with where it came from.
         const userMsg =
           `RACE BRIEF (what has happened so far):\n${JSON.stringify(this.arc?.brief(this.state) ?? null)}\n\n` +
           `TONE RIGHT NOW: ${mood}. ${direction}\n\n` +
-          `LIVE TELEMETRY SNAPSHOT:\n${JSON.stringify(engineerSnapshot(this.state))}\n\n` +
           `DRIVER RADIO: ${text}`;
 
         const reply = await this._post({
           system: PERSONA(config.driverName),
           messages: [...this.history, { role: "user", content: userMsg }],
-          maxTokens: 300,
+          maxTokens: 400,
+          tools: TOOL_DEFS,
         });
         if (reply === null) return "Radio's down, say again.";
 

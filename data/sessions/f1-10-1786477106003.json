@@ -1,0 +1,88 @@
+{
+  "trackKey": "f1-10",
+  "track": "Spa",
+  "game": "f1",
+  "sessionType": "Race",
+  "mode": "race",
+  "finishedAt": 1786477106003,
+  "durationMin": 10.4,
+  "result": {
+    "startedP": 7,
+    "finishedP": 8,
+    "netPlaces": -1,
+    "totalLaps": 5,
+    "status": "Active"
+  },
+  "pace": {
+    "bestLapMs": 113862,
+    "idealLapMs": 111904,
+    "referenceLapMs": 113848,
+    "spreadMs": 10275,
+    "lapCount": 4
+  },
+  "weakSegments": [
+    {
+      "fromM": 1000,
+      "toM": 3000,
+      "deltaMs": 1632,
+      "lostSec": 1.63
+    },
+    {
+      "fromM": 200,
+      "toM": 800,
+      "deltaMs": 830,
+      "lostSec": 0.83
+    }
+  ],
+  "tyres": {
+    "compound": "Soft",
+    "actual": "C4",
+    "ageLaps": 2,
+    "worstWearPct": 8
+  },
+  "incidents": [
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with car 69"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with car 2"
+    },
+    {
+      "kind": "penalty",
+      "lap": 1,
+      "text": "picked up a warning for a small collision"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with car 69"
+    },
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with car 2"
+    }
+  ],
+  "penalties": [
+    "a warning for a small collision"
+  ],
+  "pitLossSec": 27.7,
+  "stints": [
+    {
+      "compound": "C4",
+      "startLap": 4,
+      "endLap": 5,
+      "laps": [
+        {
+          "age": 1,
+          "ms": 113862,
+          "at": 494.70855712890625
+        }
+      ]
+    }
+  ]
+}

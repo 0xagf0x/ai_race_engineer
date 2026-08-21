@@ -1,0 +1,244 @@
+{
+  "trackKey": "gt7-5740-1611x886",
+  "track": "GT7 session",
+  "game": "gt7",
+  "sessionType": "Session",
+  "mode": "practice",
+  "finishedAt": 1786989547975,
+  "durationMin": 17.2,
+  "result": {
+    "startedP": null,
+    "finishedP": null,
+    "netPlaces": 0,
+    "totalLaps": -1,
+    "status": null
+  },
+  "pace": {
+    "bestLapMs": 136727,
+    "idealLapMs": null,
+    "referenceLapMs": 135886,
+    "spreadMs": 6229,
+    "lapCount": 4
+  },
+  "weakSegments": [
+    {
+      "fromM": 400,
+      "toM": 1000,
+      "deltaMs": 2176,
+      "lostSec": 2.18
+    },
+    {
+      "fromM": 2000,
+      "toM": 2400,
+      "deltaMs": 1377,
+      "lostSec": 1.38
+    },
+    {
+      "fromM": 1200,
+      "toM": 1600,
+      "deltaMs": 184,
+      "lostSec": 0.18
+    }
+  ],
+  "tyres": {
+    "compound": null,
+    "actual": null,
+    "ageLaps": null,
+    "worstWearPct": null
+  },
+  "incidents": [
+    {
+      "kind": "wide",
+      "lap": 1,
+      "text": "ran wide at 685 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 1,
+      "text": "ran wide at 685 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 1,
+      "text": "ran wide at 685 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 1,
+      "text": "ran wide at 685 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 1,
+      "text": "ran wide at 5744 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1934 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1935 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1936 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1936 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1937 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1938 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1939 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1940 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1941 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1942 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1943 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1950 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1951 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1952 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1953 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1954 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1955 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1956 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1957 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1958 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1959 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1959 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1961 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1961 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1962 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1963 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1964 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1965 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1966 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1967 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1968 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1969 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": 2,
+      "text": "ran wide at 1970 metres"
+    }
+  ],
+  "penalties": [],
+  "pitLossSec": null,
+  "stints": []
+}

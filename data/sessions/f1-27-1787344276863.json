@@ -1,0 +1,148 @@
+{
+  "trackKey": "f1-27",
+  "track": "Imola",
+  "game": "f1",
+  "sessionType": "Race",
+  "mode": "race",
+  "finishedAt": 1787344276863,
+  "durationMin": 9.6,
+  "result": {
+    "startedP": 13,
+    "finishedP": 10,
+    "netPlaces": 3,
+    "totalLaps": 5,
+    "status": "Active"
+  },
+  "pace": {
+    "bestLapMs": 82763,
+    "idealLapMs": 82125,
+    "referenceLapMs": 82742,
+    "spreadMs": 5396,
+    "lapCount": 4
+  },
+  "weakSegments": [
+    {
+      "fromM": 0,
+      "toM": 1400,
+      "deltaMs": 6404,
+      "lostSec": 6.4
+    },
+    {
+      "fromM": 2800,
+      "toM": 3400,
+      "deltaMs": 1124,
+      "lostSec": 1.12
+    },
+    {
+      "fromM": 2200,
+      "toM": 2600,
+      "deltaMs": 406,
+      "lostSec": 0.41
+    },
+    {
+      "fromM": 1600,
+      "toM": 1800,
+      "deltaMs": 199,
+      "lostSec": 0.2
+    }
+  ],
+  "tyres": {
+    "compound": "Soft",
+    "actual": "?",
+    "ageLaps": 4,
+    "worstWearPct": 23
+  },
+  "incidents": [
+    {
+      "kind": "incident",
+      "lap": 1,
+      "text": "contact with car 2"
+    },
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with car 2"
+    },
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with car 28"
+    },
+    {
+      "kind": "penalty",
+      "lap": 2,
+      "text": "picked up a warning for a small collision"
+    },
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with car 2"
+    },
+    {
+      "kind": "incident",
+      "lap": 2,
+      "text": "contact with car 2"
+    },
+    {
+      "kind": "penalty",
+      "lap": 2,
+      "text": "picked up a warning for a small collision"
+    },
+    {
+      "kind": "incident",
+      "lap": 3,
+      "text": "contact with RWAE 10"
+    },
+    {
+      "kind": "incident",
+      "lap": 3,
+      "text": "contact with car 11"
+    },
+    {
+      "kind": "penalty",
+      "lap": 3,
+      "text": "picked up a warning for a small collision"
+    },
+    {
+      "kind": "penalty",
+      "lap": 3,
+      "text": "picked up a warning for a small collision"
+    },
+    {
+      "kind": "incident",
+      "lap": 4,
+      "text": "contact with car 11"
+    }
+  ],
+  "penalties": [
+    "a warning for a small collision",
+    "a warning for a small collision",
+    "a warning for a small collision",
+    "a warning for a small collision"
+  ],
+  "pitLossSec": null,
+  "stints": [
+    {
+      "compound": "?",
+      "startLap": 2,
+      "endLap": 5,
+      "laps": [
+        {
+          "age": 1,
+          "ms": 82763,
+          "at": 177.55242919921875
+        },
+        {
+          "age": 2,
+          "ms": 84979,
+          "at": 262.5044860839844
+        },
+        {
+          "age": 3,
+          "ms": 90303,
+          "at": 352.845703125
+        }
+      ]
+    }
+  ]
+}

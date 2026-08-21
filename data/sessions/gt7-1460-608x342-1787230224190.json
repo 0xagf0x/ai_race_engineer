@@ -1,0 +1,242 @@
+{
+  "trackKey": "gt7-1460-608x342",
+  "track": "GT7 session",
+  "game": "gt7",
+  "sessionType": "Session",
+  "mode": "practice",
+  "finishedAt": 1787230224190,
+  "durationMin": 788.9,
+  "result": {
+    "startedP": null,
+    "finishedP": null,
+    "netPlaces": 0,
+    "totalLaps": -1,
+    "status": null
+  },
+  "pace": {
+    "bestLapMs": 136647,
+    "idealLapMs": null,
+    "referenceLapMs": 53664,
+    "spreadMs": 5022,
+    "lapCount": 4
+  },
+  "weakSegments": [
+    {
+      "fromM": 0,
+      "toM": 1400,
+      "deltaMs": 1777,
+      "lostSec": 1.78
+    }
+  ],
+  "tyres": {
+    "compound": null,
+    "actual": null,
+    "ageLaps": null,
+    "worstWearPct": null
+  },
+  "incidents": [
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    },
+    {
+      "kind": "wide",
+      "lap": -1,
+      "text": "ran wide at 0 metres"
+    }
+  ],
+  "penalties": [],
+  "pitLossSec": null,
+  "stints": []
+}

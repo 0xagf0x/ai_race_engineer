@@ -107,6 +107,8 @@ test("car status reads through to the ERS block", () => {
     visual: at(1),
     age: at(1),
     flags: at(1),
+    iceP: at(4),
+    mgukP: at(4),
     ers: at(4),
     mode: at(1),
   };

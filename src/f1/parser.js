@@ -527,6 +527,12 @@ export function parseCarStatus(buf, h) {
     visualTyreCompound: r.u8(),
     tyresAgeLaps: r.u8(),
     fiaFlags: r.i8(),
+    // enginePowerICE and enginePowerMGUK sit between the flags and the ers
+    // block from 2023 onward. without them the cursor lands 8 bytes early and
+    // ersStoreEnergy reads ice power in watts, which is why a full store read
+    // as twelve percent and an idling car on the grid read as two.
+    enginePowerICE: r.f32(),
+    enginePowerMGUK: r.f32(),
     ersStoreEnergy: r.f32(),
     ersDeployMode: r.u8(),
     ersHarvestedMGUK: r.f32(),
